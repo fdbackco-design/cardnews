@@ -1,0 +1,11 @@
+node_modules/
+dist/
+output/
+.env
+
+# daily batch 처리 이력 (실제 데이터)
+data/processed-content.json
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{TITLE}} — 라이프 가이드</title>
+  <link rel="stylesheet" href="../templates/cardnews.css" />
+</head>
+<body>
+
+  <!--
+    이 파일은 구조 참고용 템플릿입니다.
+    실제 렌더링은 renderHtml.ts가 이 구조를 기반으로 HTML 문자열을 동적 생성합니다.
+
+    [카드 슬라이드 구조]
+
+    ── 표지 카드 ──────────────────────────────────────────────────────────
+    <section class="card-slide card-cover">
+      <div class="brand-footer">TY Life Partners</div>
+      <div class="label">라이프 가이드</div>
+      <h1 class="title">
+        {{titleLines — 줄바꿈은 <br>로 삽입}}
+      </h1>
+      <p class="subtitle">{{subtitle}}</p>
+    </section>
+
+    ── 내용 카드 ──────────────────────────────────────────────────────────
+    <section class="card-slide card-content">
+      <div class="card-number">{{index}} / {{total}}</div>
+      <h2 class="card-title">{{title}}</h2>
+      <p class="card-subtitle">{{subtitle}}</p>
+      <p class="card-intro">{{intro}}</p>
+
+      <!-- highlights가 있을 때 -->
+      <div class="highlights">
+        <div class="highlight-item">{{highlight}}</div>
+      </div>
+
+      <!-- bullets가 있을 때 -->
+      <ul class="bullets">
+        <li class="bullet-item">{{bullet}}</li>
+      </ul>
+
+      <p class="card-outro">{{outro}}</p>
+      <div class="brand-mark">TY Life Partners</div>
+    </section>
+  -->
+
+  <p style="font-family:sans-serif;padding:3rem;color:#999;">
+    이 파일은 구조 참고용 템플릿입니다.<br>
+    실제 카드뉴스는 <code>npm run generate</code>로 생성됩니다.
+  </p>
+
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "cardnews-generator",
+  "version": "1.0.0",
+  "description": "TY Life Partners 라이프 가이드 카드뉴스 자동 생성 시스템",
+  "main": "dist/index.js",
+  "scripts": {
+    "generate": "tsx src/index.ts",
+    "capture": "tsx src/generator/captureCards.ts",
+    "all": "npm run generate -- --capture",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "kdca:list": "tsx src/services/kdcaListScraper.ts",
+    "daily": "tsx src/jobs/dailyCardNews.ts",
+    "daily:dry-run": "tsx src/jobs/dailyCardNews.ts --dry-run"
+  },
+  "dependencies": {
+    "@types/sharp": "^0.31.1",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.44.0",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "entries": {
+    "137": {
+      "contentId": "137",
+      "title": "족저근막염: 아침 첫발의 고통, 원인과 대처법",
+      "processedAt": "2026-05-19T01:00:00.000Z",
+      "outputDir": "output/20260519-족저근막염-아침-첫발의-고통-원인과-대처법",
+      "deckId": "족저근막염-아침-첫발의-고통-원인과-대처법",
+      "runId": "daily-20260519-100000",
+      "imageSummary": {
+        "gemini": 6,
+        "pexels": 0,
+        "local": 0
+      },
+      "auditStatus": "ok"
+    }
+  }
+}
