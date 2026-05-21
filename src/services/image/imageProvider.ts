@@ -2,7 +2,12 @@ import * as fs   from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
 
-import { buildCardImagePrompt, type CardScene } from "./imagePromptBuilder";
+import {
+  buildCardImagePrompt,
+  buildImagenPromptFromLlmQuery,
+  isLlmCraftedImageQuery,
+  type CardScene,
+} from "./imagePromptBuilder";
 import { generateImagenCardImage }              from "./geminiImageProvider";
 import { searchPexelsUnique }                   from "./pexelsImageProvider";
 import { getLocalFallbackUrl }                  from "./localImageProvider";
@@ -59,6 +64,21 @@ function getMode(): ImageProviderMode {
   return (process.env["IMAGE_PROVIDER"] ?? "hybrid") as ImageProviderMode;
 }
 
+/** LLM imagePrompt 사용 시 prompts.json용 scene 요약 */
+function inferSceneFallback(params: ResolveCardImageParams): CardScene {
+  const { scene } = buildCardImagePrompt({
+    cardType:   params.cardType,
+    cardIndex:  params.cardIndex,
+    topic:      params.topic,
+    title:      params.title,
+    subtitle:   params.subtitle,
+    intro:      params.intro,
+    highlights: params.highlights,
+    outro:      params.outro,
+  });
+  return { ...scene, category: params.cardType === "cover" ? "cover" : scene.category };
+}
+
 // ── 카드 이미지 해결 (우선순위 라우팅) ────────────────────────────────────────
 
 export async function resolveCardImage(
@@ -70,16 +90,24 @@ export async function resolveCardImage(
 
   // ── Gemini/Imagen 우선 시도 (gemini | hybrid) ────────────────────────────
   if (mode === "gemini" || mode === "hybrid") {
-    const { prompt, scene } = buildCardImagePrompt({
-      cardType:   params.cardType,
-      cardIndex:  params.cardIndex,
-      topic:      params.topic,
-      title:      params.title,
-      subtitle:   params.subtitle,
-      intro:      params.intro,
-      highlights: params.highlights,
-      outro:      params.outro,
-    });
+    const llmQuery = params.imageQuery?.trim() ?? "";
+    const useLlmPrompt = llmQuery.length > 0 && isLlmCraftedImageQuery(llmQuery);
+
+    const { prompt, scene } = useLlmPrompt
+      ? {
+          prompt: buildImagenPromptFromLlmQuery(llmQuery),
+          scene: inferSceneFallback(params),
+        }
+      : buildCardImagePrompt({
+          cardType:   params.cardType,
+          cardIndex:  params.cardIndex,
+          topic:      params.topic,
+          title:      params.title,
+          subtitle:   params.subtitle,
+          intro:      params.intro,
+          highlights: params.highlights,
+          outro:      params.outro,
+        });
 
     const result = await generateImagenCardImage({
       setId:      params.setId,
@@ -102,8 +130,9 @@ export async function resolveCardImage(
 
   // ── Pexels fallback (gemini | hybrid | pexels) ───────────────────────────
   if (mode !== "local") {
-    const query = params.imageQuery
-      || `${params.topic} ${params.title} health lifestyle photo portrait dark`;
+    const query =
+      params.imageQuery?.trim() ||
+      `${params.topic} ${params.title} health lifestyle photo portrait dark`;
 
     const url = await searchPexelsUnique(query, usedUrls);
     if (url !== getLocalFallbackUrl()) {

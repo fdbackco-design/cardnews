@@ -1,6 +1,13 @@
 import type { CardNewsSet, ContentCard, CoverCard, KdcaContent } from "../types/cardnews";
 import { slugify } from "../utils/fs";
-import { truncate } from "../utils/text";
+import {
+  generateCardNewsFromSource,
+  generateCardNewsFromTopic,
+  isContentLlmEnabled,
+  logCardCopyValidation,
+  toContentCard,
+} from "../services/content/contentGenerator";
+import { buildVisualImageQuery } from "../utils/text";
 
 // ── 옵션 타입 ─────────────────────────────────────────────────────────────────
 
@@ -10,16 +17,17 @@ export type PlanCardNewsOptions = {
   source?: KdcaContent;
   contentId?: string;
   cardCount?: number;
+  // 직접 주제 입력 모드 전용
+  targetAudience?: string;
+  tone?: string;
+  referenceText?: string;
 };
 
 // ── 상수 ─────────────────────────────────────────────────────────────────────
 
 const MIN_CARDS = 6;
 const MAX_CARDS = 8;
-const MAX_INTRO_CHARS = 65;
-const MAX_HIGHLIGHT_CHARS = 22;
-const MAX_BULLET_CHARS = 24;
-const MAX_TITLE_CHARS = 20;
+const MIN_KDCA_SECTIONS = 2;
 
 // ── 내부 유틸리티 ─────────────────────────────────────────────────────────────
 
@@ -62,62 +70,105 @@ function makeCover(
   };
 }
 
-// ── 소스 기반 카드 변환 ───────────────────────────────────────────────────────
-
-function sectionsToNarrativeCards(
-  sections: KdcaContent["sections"],
-  maxCards: number,
-  topic: string
-): ContentCard[] {
-  const roleLabels = ["개요", "주요 증상", "원인", "관리 방법", "주의 사항", "마무리"];
-
-  return sections
-    .filter((s) => s.body.trim().length >= 20)
-    .slice(0, maxCards)
-    .map((s, i) => {
-      // heading이 있고 짧으면 그대로, 길면 role 라벨 사용
-      const rawHeading = s.heading?.trim() ?? "";
-      const title =
-        rawHeading && rawHeading.length <= MAX_TITLE_CHARS
-          ? rawHeading
-          : roleLabels[i] ?? `핵심 ${i + 1}`;
-
-      return {
-        type: "content" as const,
-        index: i + 1,
-        title,
-        intro: truncate(s.body, MAX_INTRO_CHARS),
-        imageQuery: `${topic} health ${i % 2 === 0 ? "dark calm" : "bright clear"} background`,
-      };
-    });
+/** Gemini가 재작성한 표지 제목·라인을 그대로 적용 (KDCA 원문은 별도로 보존) */
+function makeCoverFromRewritten(params: {
+  rewrittenTitle: string;
+  titleLines: string[];
+  fallbackImageTopic: string;
+  subtitle?: string;
+  imageQuery?: string;
+}): CoverCard {
+  const { rewrittenTitle, titleLines, fallbackImageTopic, subtitle, imageQuery } =
+    params;
+  return {
+    type: "cover",
+    variant: "bottom",
+    label: "라이프 가이드",
+    titleLines: titleLines.length > 0 ? titleLines : splitCoverTitle(rewrittenTitle),
+    rewrittenCoverTitle: rewrittenTitle,
+    subtitle,
+    imageQuery:
+      imageQuery ?? `${fallbackImageTopic} health bright positive background`,
+  };
 }
 
-function sectionsToListCards(
-  sections: KdcaContent["sections"],
-  maxCards: number,
-  topic: string
-): ContentCard[] {
-  return sections
-    .filter((s) => s.body.trim().length >= 20)
-    .slice(0, maxCards)
-    .map((s, i) => {
-      const sentences = s.body
-        .split(/[.。]\s+/)
-        .map((t) => t.trim())
-        .filter((t) => t.length >= 8)
-        .slice(0, 3)
-        .map((t) => truncate(t, MAX_BULLET_CHARS));
+// ── KDCA 섹션 → 카드 필드 ─────────────────────────────────────────────────────
 
-      return {
-        type: "content" as const,
-        index: i + 1,
-        title: truncate(s.heading ?? `방법 ${i + 1}`, MAX_TITLE_CHARS),
-        subtitle: `${i + 1}번째 포인트`,
-        intro: truncate(s.body, MAX_INTRO_CHARS),
-        bullets: sentences.length > 0 ? sentences : undefined,
-        imageQuery: `${topic} health tip ${i + 1} dark calm background`,
-      };
-    });
+type KdcaSection = KdcaContent["sections"][number];
+
+function isUsableSection(s: KdcaSection): boolean {
+  const body = s.body.trim();
+  return body.length >= 20 || (Boolean(s.heading?.trim()) && body.length >= 5);
+}
+
+function sectionPriorityScore(heading: string): number {
+  const h = heading.toLowerCase();
+  if (/이란|개요|정의/.test(h)) return 100;
+  if (/주요\s*증상|증상/.test(h)) return 90;
+  if (/원인/.test(h)) return 85;
+  if (/자가\s*진단|체크/.test(h)) return 80;
+  if (/관리|실천/.test(h)) return 75;
+  if (/병원|방문|주의/.test(h)) return 70;
+  if (/질문|faq/.test(h)) return 40;
+  return 50;
+}
+
+/** 카드뉴스 내용 카드 수(5~6)에 맞게 섹션 선택 (우선순위 정렬) */
+function selectSectionsForCards(
+  sections: KdcaContent["sections"],
+  maxContentCards: number
+): KdcaSection[] {
+  let usable = sections.filter(isUsableSection);
+
+  const withHeading = usable.filter((s) => Boolean(s.heading?.trim()));
+  if (withHeading.length >= MIN_KDCA_SECTIONS) {
+    usable = withHeading;
+  }
+
+  const indexed = usable.map((s, i) => ({ s, i }));
+  indexed.sort((a, b) => {
+    const scoreDiff =
+      sectionPriorityScore(b.s.heading ?? "") - sectionPriorityScore(a.s.heading ?? "");
+    if (scoreDiff !== 0) return scoreDiff;
+    return a.i - b.i;
+  });
+
+  const sorted = indexed.map((x) => x.s);
+  if (sorted.length <= maxContentCards) return sorted;
+  return sorted.slice(0, maxContentCards);
+}
+
+/** Gemini HTML 재작성 → ContentCard + 표지 제목·imagePrompt */
+async function buildContentCardsFromSource(
+  source: KdcaContent,
+  maxCards: number,
+  topic: string,
+  pattern: "narrative" | "list"
+): Promise<{
+  cards: ContentCard[];
+  coverTitle: string;
+  coverTitleLines: string[];
+  coverImagePrompt: string;
+}> {
+  const deck = await generateCardNewsFromSource({
+    source,
+    topic,
+    contentCardCount: maxCards,
+  });
+  logCardCopyValidation(deck.contentCards);
+
+  const cards = deck.contentCards.map((copy, i) => {
+    const section = source.sections[i];
+    const bodyForImage = section?.body ?? source.rawText.slice(0, 600);
+    return toContentCard(copy, i, topic, pattern, bodyForImage);
+  });
+
+  return {
+    cards,
+    coverTitle: deck.coverTitle,
+    coverTitleLines: deck.coverTitleLines,
+    coverImagePrompt: deck.coverImagePrompt,
+  };
 }
 
 // ── 혈압 주제 전용 프리셋 (narrative) ─────────────────────────────────────────
@@ -219,13 +270,14 @@ function buildBloodPressureNarrative(options: PlanCardNewsOptions): CardNewsSet 
 
 // ── 소스 기반 범용 빌더 ───────────────────────────────────────────────────────
 
-function buildNarrativeFromSource(
+async function buildNarrativeFromSource(
   options: PlanCardNewsOptions,
   source: KdcaContent
-): CardNewsSet {
+): Promise<CardNewsSet> {
   const { topic, cardCount } = options;
   const count = clampCardCount(cardCount);
-  const cards = sectionsToNarrativeCards(source.sections, count - 1, topic);
+  const { cards, coverTitle, coverTitleLines, coverImagePrompt } =
+    await buildContentCardsFromSource(source, count - 1, topic, "narrative");
 
   // 섹션 수가 부족하면 마지막 카드를 생활 관리 카드로 보완
   while (cards.length < count - 1) {
@@ -242,28 +294,32 @@ function buildNarrativeFromSource(
     });
   }
 
+  const originalTitle = source.title || topic;
   return {
-    id: makeId(source.title || topic),
-    title: source.title || topic,
+    id: makeId(originalTitle),
+    title: originalTitle,
+    originalTitle,
     topic,
     pattern: "narrative",
     sourceUrl: source.sourceUrl,
-    cover: makeCover(
-      source.title || topic,
-      undefined,
-      `${topic} health bright positive background`
-    ),
+    cover: makeCoverFromRewritten({
+      rewrittenTitle: coverTitle,
+      titleLines: coverTitleLines,
+      fallbackImageTopic: topic,
+      imageQuery: coverImagePrompt,
+    }),
     cards,
   };
 }
 
-function buildListFromSource(
+async function buildListFromSource(
   options: PlanCardNewsOptions,
   source: KdcaContent
-): CardNewsSet {
+): Promise<CardNewsSet> {
   const { topic, cardCount } = options;
   const count = clampCardCount(cardCount);
-  const cards = sectionsToListCards(source.sections, count - 1, topic);
+  const { cards, coverTitle, coverTitleLines, coverImagePrompt } =
+    await buildContentCardsFromSource(source, count - 1, topic, "list");
 
   while (cards.length < count - 1) {
     const i = cards.length;
@@ -277,13 +333,20 @@ function buildListFromSource(
     });
   }
 
+  const originalTitle = source.title || topic;
   return {
-    id: makeId(source.title || topic),
-    title: source.title || topic,
+    id: makeId(originalTitle),
+    title: originalTitle,
+    originalTitle,
     topic,
     pattern: "list",
     sourceUrl: source.sourceUrl,
-    cover: makeCover(source.title || topic),
+    cover: makeCoverFromRewritten({
+      rewrittenTitle: coverTitle,
+      titleLines: coverTitleLines,
+      fallbackImageTopic: topic,
+      imageQuery: coverImagePrompt,
+    }),
     cards,
   };
 }
@@ -340,6 +403,55 @@ function buildGenericList(options: PlanCardNewsOptions): CardNewsSet {
   };
 }
 
+// ── 직접 주제 기반 빌더 (LLM 창작) ───────────────────────────────────────────
+
+async function buildNarrativeFromTopic(
+  options: PlanCardNewsOptions
+): Promise<CardNewsSet> {
+  const { topic, cardCount, targetAudience, tone, referenceText } = options;
+  const count = clampCardCount(cardCount);
+  const contentCardCount = count - 1;
+
+  const deck = await generateCardNewsFromTopic({
+    topic,
+    targetAudience,
+    tone,
+    referenceText,
+    contentCardCount,
+  });
+  logCardCopyValidation(deck.contentCards);
+
+  const cards: ContentCard[] = deck.contentCards.map((copy, i) =>
+    toContentCard(copy, i, topic, "narrative", "")
+  );
+
+  while (cards.length < contentCardCount) {
+    const i = cards.length;
+    cards.push({
+      type: "content",
+      index: i + 1,
+      title: i === contentCardCount - 1 ? "생활 속 관리" : `핵심 ${i + 1}`,
+      intro: `${topic}와 관련된 중요한 정보를 확인해 보세요.`,
+      imageQuery: `${topic} health lifestyle ${i % 2 === 0 ? "dark" : "bright"} background`,
+    });
+  }
+
+  return {
+    id: makeId(topic),
+    title: deck.coverTitle,
+    originalTitle: topic,
+    topic,
+    pattern: "narrative",
+    cover: makeCoverFromRewritten({
+      rewrittenTitle: deck.coverTitle,
+      titleLines: deck.coverTitleLines,
+      fallbackImageTopic: topic,
+      imageQuery: deck.coverImagePrompt,
+    }),
+    cards,
+  };
+}
+
 // ── 토픽 매핑 ─────────────────────────────────────────────────────────────────
 
 type TopicBuilder = (options: PlanCardNewsOptions) => CardNewsSet;
@@ -357,14 +469,19 @@ function matchTopicBuilder(
   return key ? map[key] : undefined;
 }
 
+/** KDCA 원문을 카드 기획에 쓸 수 있는지 (최소 2개 유효 섹션) */
+function hasUsableKdcaSource(source: KdcaContent): boolean {
+  return source.sections.filter(isUsableSection).length >= MIN_KDCA_SECTIONS;
+}
+
 // ── 공개 API ─────────────────────────────────────────────────────────────────
 
 /**
  * 입력 옵션으로부터 CardNewsSet을 생성합니다.
  *
  * 우선순위:
- *   1. 토픽 전용 프리셋 (narrative 한정)
- *   2. KdcaContent 기반 변환 (source.sections >= 3개)
+ *   1. KdcaContent 기반 변환 (수집된 원문이 있으면 토픽 키워드보다 우선)
+ *   2. 토픽 전용 프리셋 (narrative, 원문 없을 때만)
  *   3. 범용 템플릿
  */
 export function planCardNews(options: PlanCardNewsOptions): CardNewsSet {
@@ -374,18 +491,54 @@ export function planCardNews(options: PlanCardNewsOptions): CardNewsSet {
 
   if (pattern === "narrative") {
     const topicBuilder = matchTopicBuilder(topic, NARRATIVE_TOPIC_BUILDERS);
-    if (topicBuilder) return topicBuilder(resolved);
-
-    if (source && source.sections.length >= 3) {
-      return buildNarrativeFromSource(resolved, source);
+    if (topicBuilder && !(source && hasUsableKdcaSource(source))) {
+      return topicBuilder(resolved);
     }
-
+    if (source && hasUsableKdcaSource(source)) {
+      throw new Error(
+        "KDCA 원문 기획은 planCardNewsAsync()를 사용하세요. (LLM 카피 재작성)"
+      );
+    }
     return buildGenericNarrative(resolved);
   }
 
-  // list pattern
-  if (source && source.sections.length >= 3) {
+  if (source && hasUsableKdcaSource(source)) {
+    throw new Error(
+      "KDCA 원문 기획은 planCardNewsAsync()를 사용하세요. (LLM 카피 재작성)"
+    );
+  }
+  return buildGenericList(resolved);
+}
+
+/**
+ * KDCA 원문이 있으면 LLM으로 카드 카피를 재작성한다.
+ */
+export async function planCardNewsAsync(
+  options: PlanCardNewsOptions
+): Promise<CardNewsSet> {
+  const { pattern, topic, source, cardCount } = options;
+  const count = clampCardCount(cardCount);
+  const resolved = { ...options, cardCount: count };
+
+  if (pattern === "narrative") {
+    if (source && hasUsableKdcaSource(source)) {
+      return buildNarrativeFromSource(resolved, source);
+    }
+    const topicBuilder = matchTopicBuilder(topic, NARRATIVE_TOPIC_BUILDERS);
+    if (topicBuilder) return topicBuilder(resolved);
+    // 직접 주제 입력: LLM으로 창작
+    if (isContentLlmEnabled()) {
+      return buildNarrativeFromTopic(resolved);
+    }
+    return buildGenericNarrative(resolved);
+  }
+
+  if (source && hasUsableKdcaSource(source)) {
     return buildListFromSource(resolved, source);
+  }
+  // 직접 주제 입력 list 패턴: LLM 창작
+  if (isContentLlmEnabled()) {
+    return buildNarrativeFromTopic({ ...resolved, pattern: "narrative" });
   }
   return buildGenericList(resolved);
 }

@@ -84,7 +84,13 @@ function saveDebugHtml(html: string, contentId: string): void {
 }
 
 function cleanText(raw: string): string {
-  return raw.replace(/\s+/g, " ").trim();
+  return raw
+    .replace(/\u00a0/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*⦁\s*/g, " ⦁ ")
+    .trim();
 }
 
 // ── HTTP 요청 ──────────────────────────────────────────────────────────────
@@ -146,11 +152,193 @@ function findContentRoot(
   return $("body");
 }
 
-function extractSections(
+// ── li.content 기반 섹션 추출 (KDCA 이달의 건강정보 본문) ─────────────────────
+
+const LI_CONTENT_SELECTORS = [
+  '.board-contents li.content[id^="thtimtCntntsClInfo_"]',
+  'li.content[id^="thtimtCntntsClInfo_"]',
+];
+
+/** 오렌지 계열 제목 span (예: color: rgb(237, 133, 19)) */
+function isOrangeTitleStyle(style: string | undefined): boolean {
+  if (!style) return false;
+  const s = style.toLowerCase().replace(/\s/g, "");
+  if (s.includes("237,133,19")) return true;
+  if (s.includes("ed8513") || s.includes("ff6b3d") || s.includes("ff8533")) return true;
+  if (s.includes("orange")) return true;
+  // rgb 범위 heuristic
+  const rgb = s.match(/rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgb) {
+    const r = parseInt(rgb[1]!, 10);
+    const g = parseInt(rgb[2]!, 10);
+    const b = parseInt(rgb[3]!, 10);
+    if (r >= 200 && g >= 80 && g <= 180 && b <= 80) return true;
+  }
+  return false;
+}
+
+function extractSectionHeading(
+  $: cheerio.CheerioAPI,
+  $li: cheerio.Cheerio<AnyNode>
+): string | undefined {
+  let fromOrange: string | undefined;
+
+  $li.find("span[style]").each((_, el) => {
+    if (fromOrange) return;
+    const $span = $(el);
+    if (isOrangeTitleStyle($span.attr("style"))) {
+      const text = cleanText($span.text());
+      if (text.length >= 2 && text.length <= 120) fromOrange = text;
+    }
+  });
+  if (fromOrange) return fromOrange;
+
+  for (const tag of ["strong", "b"] as const) {
+    const text = cleanText($li.find(tag).first().text());
+    if (text.length >= 2 && text.length <= 120) return text;
+  }
+
+  const firstP = cleanText($li.find("p").first().text());
+  if (firstP.length >= 2 && firstP.length <= 80) return firstP;
+
+  return undefined;
+}
+
+function isHeadingElement(
+  $: cheerio.CheerioAPI,
+  $el: cheerio.Cheerio<AnyNode>,
+  heading?: string
+): boolean {
+  if ($el.is("span[style]") && isOrangeTitleStyle($el.attr("style"))) return true;
+  if (!heading) return false;
+  const text = cleanText($el.text());
+  return text === heading || text.startsWith(heading);
+}
+
+function extractSectionBody(
+  $: cheerio.CheerioAPI,
+  $li: cheerio.Cheerio<AnyNode>,
+  heading?: string
+): string {
+  const parts: string[] = [];
+
+  $li.find("p, li").each((_, el) => {
+    const $el = $(el);
+    if (isHeadingElement($, $el, heading)) return;
+
+    // 중첩 li.content 내부가 아닌 자식만 (같은 블록 내 하위 목록은 포함)
+    const text = cleanText($el.text());
+    if (text.length < 3) return;
+    if (heading && text === heading) return;
+
+    parts.push(text);
+  });
+
+  const unique = [...new Set(parts)];
+  return unique.join(" ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * 단일 `li.content` 내부를 오렌지 제목 span 기준으로 여러 섹션으로 분할.
+ * (한 li에 본문 전체가 들어 있는 KDCA 페이지 대응)
+ */
+function splitLiContentIntoSections(
+  $: cheerio.CheerioAPI,
+  $li: cheerio.Cheerio<AnyNode>
+): { heading?: string; body: string }[] {
+  $li.find("img, script, style").remove();
+
+  const sections: { heading?: string; body: string }[] = [];
+  let currentHeading: string | undefined;
+  let currentBodies: string[] = [];
+
+  const flush = (): void => {
+    const body = currentBodies
+      .map((p) => cleanText(p))
+      .filter((p) => p.length >= 3)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (body.length >= 5 || (currentHeading && body.length > 0)) {
+      sections.push({ heading: currentHeading, body });
+    }
+    currentBodies = [];
+    currentHeading = undefined;
+  };
+
+  $li.find("p").each((_, el) => {
+    const $p = $(el);
+    // 중첩 <p><p>...</p></p> 구조 — 바깥 p는 건너뛰고 leaf p만 처리
+    if ($p.children("p").length > 0) return;
+
+    const $orange = $p
+      .find("span[style] b, span[style]")
+      .filter((__, span) => isOrangeTitleStyle($(span).attr("style")));
+
+    if ($orange.length > 0) {
+      const heading = cleanText($orange.first().text());
+      if (heading.length >= 2) {
+        flush();
+        currentHeading = heading;
+        return;
+      }
+    }
+
+    const text = cleanText($p.text());
+    if (text.length < 3) return;
+    if (currentHeading && text === currentHeading) return;
+    if (isOrangeTitleStyle($p.find("span[style]").first().attr("style"))) return;
+    currentBodies.push(text);
+  });
+
+  flush();
+
+  if (sections.length > 0) return sections;
+
+  // 오렌지 제목이 없으면 li 전체를 1섹션으로
+  const heading = extractSectionHeading($, $li);
+  const body    = extractSectionBody($, $li, heading);
+  if (body.length >= 5 || heading) {
+    return [{ heading, body }];
+  }
+  return [];
+}
+
+/**
+ * `.board-contents li.content` 블록 단위로 본문 섹션 추출.
+ * li 하나에 본문 전체가 있으면 오렌지 제목으로 다시 분할한다.
+ * 없으면 null → legacy 파싱으로 fallback.
+ */
+function extractLiContentSections(
+  $: cheerio.CheerioAPI
+): { heading?: string; body: string }[] | null {
+  let $items: cheerio.Cheerio<AnyNode> | null = null;
+
+  for (const sel of LI_CONTENT_SELECTORS) {
+    const found = $(sel);
+    if (found.length > 0) {
+      $items = found;
+      break;
+    }
+  }
+
+  if (!$items || $items.length === 0) return null;
+
+  const sections: { heading?: string; body: string }[] = [];
+
+  $items.each((_, el) => {
+    const parts = splitLiContentIntoSections($, $(el));
+    sections.push(...parts);
+  });
+
+  return sections.length > 0 ? sections : null;
+}
+
+// ── legacy 섹션 추출 (li.content 없을 때) ────────────────────────────────────
+
+function extractSectionsLegacy(
   $: cheerio.CheerioAPI
 ): { heading?: string; body: string }[] {
-  // 노이즈 제거는 parseKdcaHtml에서 먼저 수행됨
-
   const $root = findContentRoot($);
   const sections: { heading?: string; body: string }[] = [];
   let currentHeading: string | undefined;
@@ -206,14 +394,52 @@ function extractSections(
   return sections;
 }
 
+/** Gemini 재작성용 — 본문 li.content HTML (노이즈 제거 전 추출) */
+function extractSourceHtml($: cheerio.CheerioAPI): string {
+  const chunks: string[] = [];
+
+  const selectors = [
+    'li.content[id^="thtimtCntntsClInfo_"]',
+    "li.content",
+    ".board-contents",
+  ];
+
+  for (const sel of selectors) {
+    $(sel).each((_, el) => {
+      const $el = $(el).clone();
+      $el.find("script, style, button, input, select").remove();
+      const block = $el.html()?.trim();
+      if (block && block.length > 30) chunks.push(block);
+    });
+    if (chunks.length > 0) break;
+  }
+
+  return chunks.join("\n<hr/>\n").slice(0, 64_000);
+}
+
 function parseKdcaHtml(html: string, contentId: string): KdcaContent {
   const $ = cheerio.load(html);
+
+  const sourceHtml = extractSourceHtml($);
 
   // 노이즈 제거를 타이틀/섹션 추출보다 먼저 수행
   $(NOISE_SELECTORS).remove();
 
   const title = extractTitle($);
-  const sections = extractSections($);
+
+  const liSections = extractLiContentSections($);
+  const sections   = liSections ?? extractSectionsLegacy($);
+
+  if (liSections) {
+    console.log(`[KdcaScraper] li.content 섹션 ${liSections.length}개 추출`);
+    liSections.forEach((s, i) => {
+      const h = s.heading ? `"${s.heading.slice(0, 30)}"` : "(제목 없음)";
+      console.log(`[KdcaScraper]   [${i + 1}] ${h} — ${s.body.length}자`);
+    });
+  } else {
+    console.log("[KdcaScraper] li.content 없음 — legacy 파싱 사용");
+  }
+
   const rawText = sections
     .map((s) => [s.heading, s.body].filter(Boolean).join("\n"))
     .join("\n\n");
@@ -236,6 +462,7 @@ function parseKdcaHtml(html: string, contentId: string): KdcaContent {
     title,
     sections,
     rawText,
+    sourceHtml: sourceHtml.length > 0 ? sourceHtml : undefined,
   };
 }
 

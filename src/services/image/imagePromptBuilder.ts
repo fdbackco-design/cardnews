@@ -1,3 +1,20 @@
+// ── 출력 규격 (카드뉴스와 동일) ───────────────────────────────────────────────
+
+export const CARD_IMAGE_WIDTH  = 1080;
+export const CARD_IMAGE_HEIGHT = 1350;
+
+const OUTPUT_DIMENSIONS_RULE =
+  `OUTPUT SIZE (MANDATORY): Exactly ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} pixels, portrait orientation, 4:5 aspect ratio. ` +
+  "Do not crop to any other size or ratio.";
+
+const NO_TEXT_RULE =
+  "ABSOLUTELY NO TEXT IN IMAGE: Zero letters, numbers, words, captions, subtitles, watermarks, signs, labels, UI text, " +
+  "handwriting, charts with readable characters, or any typographic element anywhere in the frame.";
+
+const KOREAN_PERSON_RULE =
+  "IF ANY PERSON APPEARS: Must be clearly Korean ethnicity (South Korean appearance — Korean facial features, hair, and styling). " +
+  "Not Japanese, not Chinese, not other East Asian or Western ethnicities. Natural, unposed, editorial lifestyle photography.";
+
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 
 export type SceneCategory =
@@ -191,7 +208,7 @@ function buildAction(
   concrete:    string | null,
 ): string {
   if (category === "cover") {
-    return `A calm, natural Korean or East Asian adult in a serene health-conscious moment — ${topic} atmosphere. Composed and positive. Not posing, completely natural movement.`;
+    return `A calm, natural Korean adult (South Korean ethnicity) in a serene health-conscious moment — ${topic} atmosphere. Composed and positive. Not posing, completely natural movement.`;
   }
 
   // ── object ─────────────────────────────────────────────────────────────────
@@ -235,17 +252,17 @@ function buildAction(
     if (category === "measurement") {
       return `${concrete}. Only a forearm and wrist visible in frame — no full portrait. Device screen blank.`;
     }
-    return `${concrete}. A Korean or East Asian adult interacting naturally with this scene — partial view only (hands, side, or back). Not posing.`;
+    return `${concrete}. A Korean adult (South Korean ethnicity) interacting naturally with this scene — partial view only (hands, side, or back). Not posing.`;
   }
 
   if (category === "measurement") return "A forearm and wrist resting near a health monitoring device. Partial body only — no full face. Device screen blank or off.";
-  if (has(all, KW.exercise))  return "A Korean or East Asian adult walking along a park path. Relaxed, natural movement. Side or back view preferred.";
-  if (has(all, KW.routine))   return "Partial view of hands writing in a health journal — only hands and notebook visible. No readable text.";
-  if (has(all, KW.stress))    return "A Korean or East Asian adult sitting quietly, eyes softly closed, calm breathing. Minimal indoor setting, peaceful.";
-  if (category === "risk")    return "A middle-aged Korean adult with a calm, reflective expression — not alarmed. Quietly thoughtful moment.";
-  if (has(all, KW.diet))      return "A Korean adult in a kitchen, preparing a simple healthy meal. Natural, unposed. Partial upper body only.";
-  if (has(all, KW.sleep))     return "A Korean adult waking gently in the morning, calm and rested. Soft bedroom light. Natural expression.";
-  return `A natural Korean or East Asian adult in a quiet, health-conscious moment related to ${topic}. Unposed and completely natural.`;
+  if (has(all, KW.exercise))  return "A Korean adult (South Korean ethnicity) walking along a park path. Relaxed, natural movement. Side or back view preferred.";
+  if (has(all, KW.routine))   return "Partial view of Korean hands near a health journal — only hands and notebook visible. No readable text on pages.";
+  if (has(all, KW.stress))    return "A Korean adult (South Korean ethnicity) sitting quietly, eyes softly closed, calm breathing. Minimal indoor setting, peaceful.";
+  if (category === "risk")    return "A middle-aged Korean adult (South Korean ethnicity) with a calm, reflective expression — not alarmed. Quietly thoughtful moment.";
+  if (has(all, KW.diet))      return "A Korean adult (South Korean ethnicity) in a kitchen, preparing a simple healthy meal. Natural, unposed. Partial upper body only.";
+  if (has(all, KW.sleep))     return "A Korean adult (South Korean ethnicity) waking gently in the morning, calm and rested. Soft bedroom light. Natural expression.";
+  return `A natural Korean adult (South Korean ethnicity) in a quiet, health-conscious moment related to ${topic}. Unposed and completely natural.`;
 }
 
 // ── 무드 ──────────────────────────────────────────────────────────────────────
@@ -269,7 +286,7 @@ function buildMood(category: SceneCategory): string {
 // ── 구도 ──────────────────────────────────────────────────────────────────────
 
 function buildComposition(shotType: ShotType): string {
-  const safe = "Reserve dark or clean empty space on the LEFT and BOTTOM edges for Korean white text overlay.";
+  const safe = "Reserve dark or clean empty negative space on the LEFT and BOTTOM edges (no text or graphics in that space).";
   const comps: Record<ShotType, string> = {
     "wide shot":          `Subject in the lower-third or right-third of the frame. Generous empty space on the left and upper area for title text. ${safe}`,
     "close-up":           `Main subject fills the right half of the frame. Soft background bokeh. No clutter in the left third. ${safe}`,
@@ -286,17 +303,21 @@ function buildComposition(shotType: ShotType): string {
 
 function buildAvoid(category: SceneCategory, subjectType: SubjectType): string[] {
   const base = [
-    "no readable text of any kind",
-    "no Korean letters or characters",
-    "no English letters",
-    "no Arabic numerals",
+    "no text of any kind anywhere in the image",
+    "no readable text on screens, papers, packaging, signs, or clothing",
+    "no Korean Hangul, English, or any alphabet or numerals",
     "no logos or brand marks",
     "no product packaging with visible labels",
-    "no charts or graphs",
+    "no charts, graphs, or infographics",
     "no visible UI screens with any content",
-    "no captions or subtitles",
-    "no signboards or street signs",
+    "no captions, subtitles, speech bubbles, or watermarks",
+    "no signboards, street signs, or book pages with writing",
   ];
+  if (subjectType === "person" || subjectType === "mixed") {
+    base.push(
+      "person must be Korean ethnicity only — not Japanese, Chinese, or other ethnicities",
+    );
+  }
   if (subjectType === "object" || subjectType === "environment" || subjectType === "symbolic") {
     base.push("no visible person — or at most partial hands barely in frame if absolutely necessary");
   }
@@ -381,17 +402,21 @@ export function buildCardImagePrompt(params: {
   const scene = inferSceneFromCardText(params);
 
   const peopleRule = (scene.subjectType === "person" || scene.subjectType === "mixed")
-    ? "PEOPLE: A Korean or East Asian adult may appear. Show partial body only — hands, back, or side profile preferred over full frontal portraits. Vary appearance across different cards in this set."
-    : "PEOPLE: No person needed for this image. Focus entirely on the specified subject. At most, barely-visible partial hands at the far edge. Never a full portrait or recognizable face.";
+    ? `PEOPLE: ${KOREAN_PERSON_RULE} Show partial body only — hands, back, or side profile preferred over full frontal portraits.`
+    : "PEOPLE: No person in this image. Focus entirely on the specified subject. At most, barely-visible partial hands at the far edge. Never a full portrait or recognizable face.";
 
   const avoidList = scene.avoid.join("; ");
 
   const prompt = [
-    // ── 1순위: 핵심 피사체 (모델이 가장 먼저 읽고 가장 크게 반영) ───────────
+    // ── 0순위: 출력·금지 (모델이 반드시 준수) ───────────────────────────────
+    `[MANDATORY OUTPUT] ${OUTPUT_DIMENSIONS_RULE}`,
+    `[MANDATORY — NO TEXT] ${NO_TEXT_RULE}`,
+    "",
+    // ── 1순위: 핵심 피사체 ───────────────────────────────────────────────────
     scene.action,
     "",
-    // ── 2순위: 촬영 방식 — 사진 한정, 일러스트/3D 즉시 금지 ──────────────────
-    "PHOTOGRAPHY STYLE: Real-life editorial photography. Warm natural light, soft contrast, Korean/East Asian healthcare lifestyle magazine quality.",
+    // ── 2순위: 촬영 방식 — 사진 한정 ────────────────────────────────────────
+    "PHOTOGRAPHY STYLE: Real-life editorial photography. Warm natural light, soft contrast, Korean healthcare lifestyle magazine quality.",
     "THIS IS A PHOTOGRAPH — NOT an illustration, NOT a 3D render, NOT clip-art, NOT a vector graphic, NOT an icon, NOT a medical diagram, NOT an infographic.",
     "",
     // ── 3순위: 기술 파라미터 ───────────────────────────────────────────────
@@ -406,12 +431,12 @@ export function buildCardImagePrompt(params: {
     // ── CRITICAL 금지 규칙 ────────────────────────────────────────────────
     "[CRITICAL — STRICTLY ENFORCED]",
     "Real-life photography ONLY. Absolutely no vector icons, no clip-art, no 3D-rendered objects, no anatomical or medical diagrams, no infographics, no cartoon-style or illustrative imagery.",
-    `No text or numbers of any kind: ${avoidList}.`,
+    `${NO_TEXT_RULE} Additional avoid: ${avoidList}.`,
     "Any screen, device display, or monitor MUST be completely blank and turned off — zero digits or characters visible.",
     "Any product, food package, or bottle MUST have unreadable or absent labels.",
     "",
-    // ── 출력 규격 ─────────────────────────────────────────────────────────
-    "OUTPUT: Vertical portrait format, 1080×1350 px (4:5 ratio). Reserve empty dark or clean negative space on the LEFT and BOTTOM edges for white Korean text overlay.",
+    // ── 출력 규격 (재확인) ─────────────────────────────────────────────────
+    `FINAL OUTPUT: ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} px portrait (4:5). Image must contain zero text. ${KOREAN_PERSON_RULE}`,
   ].join("\n").trim();
 
   return { prompt, scene };
@@ -424,4 +449,44 @@ export async function refineImagePromptWithGemini(
   _cardText: string,
 ): Promise<string> {
   return basePrompt;
+}
+
+const LLM_STYLE_MARKERS =
+  /High-quality realistic photography|warm lighting|cozy interior|lifestyle Korean/i;
+
+/** ContentGenerator(Gemini)가 만든 imagePrompt인지 */
+export function isLlmCraftedImageQuery(query: string): boolean {
+  const q = query.trim();
+  return q.length >= 50 && LLM_STYLE_MARKERS.test(q);
+}
+
+/**
+ * Gemini가 생성한 imagePrompt를 Imagen/Gemini Image API용 최종 프롬프트로 래핑한다.
+ */
+export function buildImagenPromptFromLlmQuery(llmImagePrompt: string): string {
+  let scene = llmImagePrompt.trim();
+
+  if (!LLM_STYLE_MARKERS.test(scene)) {
+    scene =
+      "High-quality realistic photography, warm lighting, cozy interior, lifestyle Korean/Asian mood. " +
+      scene;
+  }
+  if (!/NO vector icons|NO clip-art|NO text/i.test(scene)) {
+    scene +=
+      " NO vector icons, NO clip-art, NO text/typography on image, NO pure medical illustrations.";
+  }
+  if (!/center space|left side|right side|empty center/i.test(scene)) {
+    scene +=
+      " The main subject is placed on the left side, leaving empty center space for text overlay.";
+  }
+
+  return [
+    `[MANDATORY OUTPUT] ${OUTPUT_DIMENSIONS_RULE}`,
+    `[MANDATORY — NO TEXT] ${NO_TEXT_RULE}`,
+    scene,
+    "PHOTOGRAPHY STYLE: Real-life editorial photography. Warm natural light, soft contrast, Korean healthcare lifestyle magazine quality.",
+    "THIS IS A PHOTOGRAPH — NOT an illustration, NOT a 3D render, NOT clip-art, NOT a vector graphic.",
+    KOREAN_PERSON_RULE,
+    `FINAL OUTPUT: ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} px portrait (4:5). Image must contain zero text.`,
+  ].join("\n\n");
 }

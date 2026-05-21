@@ -4,6 +4,8 @@ export type CardNewsPattern = "narrative" | "list";
 export type CardNewsSet = {
   id: string;
   title: string;
+  /** KDCA 원문 제목 원본 — 표지 제목 재작성과 분리해 보존 */
+  originalTitle?: string;
   topic: string;
   pattern: CardNewsPattern;
   sourceUrl?: string;
@@ -17,6 +19,8 @@ export type CoverCard = {
   variant: "top" | "bottom";
   label: "라이프 가이드";
   titleLines: string[];
+  /** Gemini가 재작성한 표지 제목(전체 문자열) — 디버깅·로깅 용도 */
+  rewrittenCoverTitle?: string;
   subtitle?: string;
   imageQuery: string;
   imageUrl?: string;
@@ -46,6 +50,8 @@ export type KdcaContent = {
     body: string;
   }[];
   rawText: string;
+  /** Gemini 재작성용 원문 HTML (li.content 등) */
+  sourceHtml?: string;
 };
 
 // ── 파이프라인 입력값 ────────────────────────────────────────────────────

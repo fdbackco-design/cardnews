@@ -111,7 +111,15 @@ npm run capture
 
 # TypeScript 컴파일
 npm run build
+
+# Daily batch — 미처리 KDCA 글 1건 자동 생성 (HTML + PNG + registry)
+npm run daily
+
+# 다음 제작 대상만 확인 (생성·registry 기록 없음)
+npm run daily:dry-run
 ```
+
+처리 이력은 `data/processed-content.json`에 저장됩니다. 스케줄러 설정은 [docs/daily-scheduler.md](docs/daily-scheduler.md)를 참고하세요.
 
 ### 옵션 조합
 

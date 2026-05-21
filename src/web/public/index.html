@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TY Life Partners — 카드뉴스 관리</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand"><span class="dot"></span>TY Life Partners</div>
+      <div class="subtitle">카드뉴스 관리 시스템</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">카드뉴스</div>
+      <button class="nav-item active" data-page="health">
+        <span class="icon">🏥</span> TY 건강 카드뉴스
+      </button>
+      <button class="nav-item" data-page="baby">
+        <span class="icon">👶</span> 베이비 지식 카드뉴스
+      </button>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">관리</div>
+      <button class="nav-item" data-page="history">
+        <span class="icon">📋</span> 생성 이력
+      </button>
+      <button class="nav-item" data-page="instagram">
+        <span class="icon">📱</span> 인스타그램 업로드
+      </button>
+      <button class="nav-item" data-page="settings">
+        <span class="icon">⚙️</span> 설정
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <span>Phase 1 · v0.1.0</span>
+    </div>
+  </nav>
+
+  <!-- ── Main Content ──────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ── TY 건강 카드뉴스 ─────────────────────────────────────────────────── -->
+    <div id="page-health" class="page-content">
+      <div class="page-header">
+        <div>
+          <h1>🏥 TY 건강 카드뉴스</h1>
+          <div class="breadcrumb">국가건강정보포털 기반 · Gemini 생성</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="refreshHistory()">이력 새로고침</button>
+      </div>
+      <div class="page-body">
+
+        <!-- 제작 방식 탭 -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <span>📝</span>
+            <h2>카드뉴스 생성</h2>
+          </div>
+          <div class="card-body">
+            <div class="tabs">
+              <button class="tab-btn active" data-tab="kdca">🏛 국가건강정보포털</button>
+              <button class="tab-btn" data-tab="custom">✏️ 직접 주제 입력</button>
+            </div>
+
+            <!-- KDCA 탭 -->
+            <div id="tab-kdca" class="tab-panel active">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">키워드 (선택)</label>
+                  <input id="kdca-keyword" type="text" class="form-control" placeholder="예: 혈압, 당뇨, 심장병" />
+                  <div class="form-hint">키워드로 KDCA 목록에서 관련 글을 자동 탐색합니다</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Content ID (선택)</label>
+                  <input id="kdca-contentid" type="text" class="form-control" placeholder="예: 137" />
+                  <div class="form-hint">직접 contentId를 알고 있는 경우 입력하세요</div>
+                </div>
+              </div>
+              <div class="flex gap-2 mt-4">
+                <button class="btn btn-primary" id="btn-generate-kdca" onclick="generateKdca()">
+                  ▶ 생성 시작
+                </button>
+                <button class="btn btn-secondary" onclick="generateKdcaAuto()">
+                  🔍 다음 미제작 글 자동 선택
+                </button>
+              </div>
+            </div>
+
+            <!-- 직접 주제 탭 -->
+            <div id="tab-custom" class="tab-panel">
+              <div class="form-group">
+                <label class="form-label">주제 *</label>
+                <input id="custom-topic" type="text" class="form-control" placeholder="예: 운동 안 해도 건강 유지하는 생활습관" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">카드 수</label>
+                <select id="custom-cardcount" class="form-control">
+                  <option value="6" selected>6장</option>
+                  <option value="7">7장</option>
+                  <option value="8">8장</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">참고 내용 <span class="text-muted" style="font-weight:400">(선택)</span></label>
+                <textarea id="custom-reference" class="form-control" rows="3" placeholder="예: 걷기, 수분 섭취, 수면, 식습관 중심&#10;Gemini가 카드 구성 시 참고합니다. 사실 확인 후 사용됩니다."></textarea>
+              </div>
+              <div class="mt-4">
+                <button class="btn btn-primary" id="btn-generate-custom" onclick="generateCustom()">
+                  ▶ 직접 주제로 카드뉴스 생성
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 진행 상태 섹션 (생성 중일 때 표시) -->
+        <div id="progress-section" class="hidden">
+          <div class="card mb-4">
+            <div class="card-header">
+              <span id="progress-status-dot" class="status-dot waiting"></span>
+              <h2 id="progress-title">카드뉴스 생성 중...</h2>
+              <div class="flex-1"></div>
+              <div class="text-sm text-muted" id="progress-jobid"></div>
+            </div>
+            <div class="card-body">
+
+              <!-- 전체 진행바 -->
+              <div class="mb-4">
+                <div class="flex justify-between mb-2">
+                  <span class="text-sm text-muted">전체 진행</span>
+                  <span class="text-sm text-muted" id="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar-wrap">
+                  <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+                </div>
+              </div>
+
+              <!-- 단계별 타임라인 -->
+              <div class="step-timeline" id="step-timeline">
+                <!-- JS로 렌더링 -->
+              </div>
+
+              <!-- 로그 -->
+              <div class="mt-6">
+                <div class="section-header">
+                  <div class="section-title">📟 실시간 로그</div>
+                  <button class="btn btn-secondary btn-sm" onclick="clearLogs()">지우기</button>
+                </div>
+                <div class="log-console" id="log-console">
+                  <div class="log-line info">[시스템] 파이프라인 시작 대기 중...</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- 결과 섹션 (생성 완료 후 표시) -->
+        <div id="result-section" class="hidden">
+          <div class="card">
+            <div class="card-header">
+              <span>✅</span>
+              <h2>생성 결과</h2>
+              <div class="flex-1"></div>
+              <button class="btn btn-secondary btn-sm" onclick="resetForm()">새로 만들기</button>
+            </div>
+            <div class="card-body">
+              <div class="result-title" id="result-title">카드뉴스 제목</div>
+              <div class="result-meta">
+                <span id="result-setid" class="font-mono badge badge-gray"></span>
+                <span id="result-card-count" class="badge badge-blue"></span>
+              </div>
+
+              <div class="flex gap-2 mb-6">
+                <button class="btn btn-secondary" id="btn-html-preview" onclick="openHtmlPreview()">
+                  🌐 HTML 미리보기
+                </button>
+                <button class="btn btn-secondary" id="btn-instagram-draft" onclick="goInstagramDraft()">
+                  📱 인스타그램 업로드 준비
+                </button>
+              </div>
+
+              <div class="section-title mb-4">🖼 카드 이미지</div>
+              <div class="image-grid" id="result-image-grid">
+                <!-- JS로 렌더링 -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── 베이비 지식 카드뉴스 ────────────────────────────────────────────── -->
+    <div id="page-baby" class="page-content hidden">
+      <div class="page-header">
+        <h1>👶 베이비 지식 카드뉴스</h1>
+      </div>
+      <div class="page-body">
+        <div class="placeholder-page">
+          <div class="icon">🚧</div>
+          <h2>준비 중입니다</h2>
+          <p>베이비 지식 카드뉴스 기능은 Phase 2에서 구현됩니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 생성 이력 ───────────────────────────────────────────────────────── -->
+    <div id="page-history" class="page-content hidden">
+      <div class="page-header">
+        <h1>📋 생성 이력</h1>
+        <button class="btn btn-secondary btn-sm" onclick="loadHistory()">🔄 새로고침</button>
+      </div>
+      <div class="page-body">
+        <div class="card">
+          <div class="card-body" id="history-content">
+            <div class="text-muted">이력을 불러오는 중...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 인스타그램 업로드 ──────────────────────────────────────────────── -->
+    <div id="page-instagram" class="page-content hidden">
+      <div class="page-header">
+        <h1>📱 인스타그램 업로드</h1>
+      </div>
+      <div class="page-body">
+        <div class="card mb-4">
+          <div class="card-header"><span>🗂</span><h2>세트 선택</h2></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">카드뉴스 세트</label>
+              <select id="ig-set-select" class="form-control">
+                <option value="">-- 세트를 선택하세요 --</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="loadInstagramDraft()">캡션 생성</button>
+          </div>
+        </div>
+
+        <div id="ig-draft-section" class="hidden">
+          <div class="card mb-4">
+            <div class="card-header"><span>✍️</span><h2>캡션 편집</h2></div>
+            <div class="card-body">
+              <textarea id="ig-caption" class="form-control" rows="10"></textarea>
+            </div>
+          </div>
+          <div class="card mb-4">
+            <div class="card-header"><span>🖼</span><h2>이미지 선택</h2></div>
+            <div class="card-body">
+              <div class="image-grid" id="ig-image-grid"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-body">
+              <button class="btn btn-success" onclick="uploadInstagram()">📤 업로드 실행</button>
+              <div id="ig-upload-log" class="log-console mt-4 hidden"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 설정 ───────────────────────────────────────────────────────────── -->
+    <div id="page-settings" class="page-content hidden">
+      <div class="page-header">
+        <h1>⚙️ 설정</h1>
+      </div>
+      <div class="page-body">
+        <div class="placeholder-page">
+          <div class="icon">⚙️</div>
+          <h2>설정</h2>
+          <p>환경변수(.env)로 설정합니다. 웹 설정 UI는 추후 추가 예정입니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 카드뉴스 상세 ──────────────────────────────────────────────────────── -->
+    <div id="page-detail" class="page-content hidden">
+      <div class="page-header">
+        <div>
+          <div class="detail-back">
+            <button class="btn btn-secondary btn-sm" onclick="navigateTo('history')">← 이력으로</button>
+          </div>
+          <h1 id="detail-title">카드뉴스 상세</h1>
+          <div class="breadcrumb" id="detail-setid"></div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" id="detail-html-btn" onclick="openDetailHtml()">🌐 HTML 미리보기</button>
+          <button class="btn btn-secondary" onclick="downloadDetailZip()" title="추후 구현">📦 ZIP 다운로드</button>
+          <button class="btn btn-secondary" id="detail-ig-btn" onclick="goDetailInstagram()">📱 업로드 준비</button>
+        </div>
+      </div>
+      <div class="page-body">
+
+        <!-- 메타 정보 -->
+        <div class="card mb-4">
+          <div class="card-header"><span>📊</span><h2>세트 정보</h2></div>
+          <div class="card-body">
+            <div class="meta-grid" id="detail-meta-grid">
+              <!-- JS 렌더링 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 이미지 -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <span>🖼</span>
+            <h2>카드 이미지</h2>
+            <div class="flex-1"></div>
+            <span class="text-sm text-muted" id="detail-img-count"></span>
+          </div>
+          <div class="card-body">
+            <div class="image-grid" id="detail-image-grid">
+              <!-- JS 렌더링 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 편집 패널 -->
+        <div class="card mb-4" id="detail-editor-card">
+          <div class="card-header">
+            <span>✏️</span><h2>텍스트 편집</h2>
+            <div class="flex-1"></div>
+            <div id="rebuild-actions" class="flex gap-2 hidden">
+              <button class="btn btn-secondary btn-sm" onclick="rerenderOnly()">🔄 HTML 재생성</button>
+              <button class="btn btn-secondary btn-sm" onclick="recaptureOnly()">📸 PNG 재캡처</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="editor-no-deck" class="empty-state hidden">
+              <div class="icon">📋</div>
+              <h3>편집 불가</h3>
+              <p>deck.json이 없는 세트입니다. 새로 생성된 카드뉴스에서만 편집이 가능합니다.</p>
+            </div>
+            <div id="editor-container" class="hidden">
+              <div class="editor-layout">
+                <div class="editor-strip" id="editor-strip"></div>
+                <div class="editor-panel" id="editor-panel">
+                  <div class="text-muted text-sm">좌측에서 카드를 선택하세요</div>
+                </div>
+              </div>
+              <div id="rebuild-status" class="rebuild-status hidden"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 파일 목록 -->
+        <div class="card">
+          <div class="card-header"><span>📁</span><h2>파일 목록</h2></div>
+          <div class="card-body">
+            <div class="files-list" id="detail-files-list">
+              <!-- JS 렌더링 -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── 이미지 프리뷰 모달 ────────────────────────────────────────────────── -->
+<div id="image-modal" class="modal-overlay hidden" onclick="closeModal()">
+  <button class="modal-nav modal-prev" onclick="event.stopPropagation(); prevCard()">&#8249;</button>
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-counter" id="modal-counter">1 / 6</div>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <img class="modal-img" id="modal-img" src="" alt="" />
+    <div class="modal-caption" id="modal-caption">카드 1</div>
+  </div>
+  <button class="modal-nav modal-next" onclick="event.stopPropagation(); nextCard()">&#8250;</button>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

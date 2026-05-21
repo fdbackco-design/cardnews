@@ -1,7 +1,8 @@
 import * as path from "path";
 
 import { captureCardsFromHtml } from "../generator/captureCards";
-import { planCardNews } from "../generator/planCardNews";
+import { planCardNewsAsync } from "../generator/planCardNews";
+import { assertDeckCopyQuality } from "../services/content/contentGenerator";
 import { renderCardNewsHtml } from "../generator/renderHtml";
 import { fetchKdcaContent } from "../services/kdcaScraper";
 import { findBestKdcaItemByKeyword } from "../services/kdcaListScraper";
@@ -119,7 +120,8 @@ export async function runCardNewsPipeline(input: PipelineInput): Promise<Pipelin
   const finalTopic = resolvedTopic ?? "건강 정보";
 
   // ── 2. 카드뉴스 기획 ─────────────────────────────────────────────────────
-  const rawDeck = planCardNews({
+  console.log(`\n[2/5] 카드뉴스 기획 중 (콘텐츠 재작성)...`);
+  const rawDeck = await planCardNewsAsync({
     topic:     finalTopic,
     pattern:   input.pattern,
     source:    kdcaData,
@@ -127,7 +129,10 @@ export async function runCardNewsPipeline(input: PipelineInput): Promise<Pipelin
     cardCount: input.cardCount,
   });
 
-  console.log(`\n[2/5] 카드뉴스 기획 완료`);
+  console.log(`[2/5] 카드뉴스 기획 완료`);
+  if (kdcaData) {
+    assertDeckCopyQuality(rawDeck.cards);
+  }
   printDeckSummary(rawDeck);
 
   // ── 3. 이미지 검색 ────────────────────────────────────────────────────────

@@ -4,6 +4,11 @@ import { pathToFileURL } from "url";
 import * as dotenv from "dotenv";
 import sharp from "sharp";
 
+import {
+  CARD_IMAGE_HEIGHT,
+  CARD_IMAGE_WIDTH,
+} from "./imagePromptBuilder";
+
 dotenv.config();
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
@@ -62,7 +67,8 @@ async function callPredict(
         instances:  [{ prompt }],
         parameters: {
           sampleCount:       1,
-          aspectRatio:       "3:4",
+          // 1080×1350 = 4:5 (카드뉴스 규격; 저장 시 sharp로 정확히 리사이즈)
+          aspectRatio:       "4:5",
           personGeneration:  "ALLOW_ADULT",
           safetyFilterLevel: "BLOCK_SOME",
         },
@@ -207,16 +213,19 @@ export async function generateImagenCardImage(params: {
     return null;
   }
 
-  // ── 파일 저장 (sharp로 1080×1350 cover crop) ─────────────────────────────
+  // ── 파일 저장 (항상 CARD_IMAGE_WIDTH×CARD_IMAGE_HEIGHT 로 cover crop) ─────
   try {
     fs.mkdirSync(path.dirname(localPath), { recursive: true });
     const rawBuffer = Buffer.from(result.bytes, "base64");
     const cropped   = await sharp(rawBuffer)
-      .resize(1080, 1350, { fit: "cover", position: "top" })
+      .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "cover", position: "top" })
       .png()
       .toBuffer();
     fs.writeFileSync(localPath, cropped);
-    console.log(`[GeminiImage] generated (${result.model}): ${path.basename(localPath)}`);
+    console.log(
+      `[GeminiImage] generated (${result.model}): ${path.basename(localPath)} ` +
+        `(${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT})`,
+    );
 
     return {
       url:      pathToFileURL(localPath).href,

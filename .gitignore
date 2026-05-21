@@ -5,6 +5,7 @@ output/
 
 # daily batch 처리 이력 (실제 데이터)
 data/processed-content.json
+logs/
 
 # OS
 .DS_Store

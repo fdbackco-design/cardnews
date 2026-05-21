@@ -15,37 +15,62 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-// ── 로컬 BMKkubulim @font-face 생성 ──────────────────────────────────────────
+// ── 로컬 @font-face 생성 ─────────────────────────────────────────────────────
 
-function getLocalKkubulimFontFace(): string {
+type LocalFontSpec = {
+  family: string;
+  weight: number;
+  files: { file: string; format: string }[];
+};
+
+function buildLocalFontFace(spec: LocalFontSpec): string {
   const fontsDir = path.resolve(process.cwd(), "public/fonts");
 
-  const candidates: { file: string; format: string }[] = [
-    { file: "BMKkubulim.ttf",    format: "truetype" },
-    { file: "BMKkubulimTTF.ttf", format: "truetype" },
-    { file: "BMKkubulim.otf",    format: "opentype" },
-    { file: "BMKkubulim.woff2",  format: "woff2"    },
-    { file: "BMKkubulim.woff",   format: "woff"     },
-  ];
-
-  for (const { file, format } of candidates) {
+  for (const { file, format } of spec.files) {
     const fullPath = path.join(fontsDir, file);
     if (fs.existsSync(fullPath)) {
       const fileUrl = pathToFileURL(fullPath).href;
-      console.log(`[Font] BMKkubulim 로컬 폰트 사용: ${file}`);
+      console.log(`[Font] ${spec.family} ${spec.weight} 로컬 폰트 사용: ${file}`);
       return `
 @font-face {
-  font-family: 'BMKkubulim';
+  font-family: '${spec.family}';
   src: url('${fileUrl}') format('${format}');
-  font-weight: 400;
+  font-weight: ${spec.weight};
   font-style: normal;
   font-display: block;
 }`;
     }
   }
 
-  console.warn("[Font] BMKkubulim 로컬 폰트 없음 — Pretendard로 fallback됩니다.");
+  console.warn(`[Font] ${spec.family} ${spec.weight} 로컬 폰트 없음 — fallback`);
   return "";
+}
+
+function getLocalFontFaces(): string {
+  return [
+    buildLocalFontFace({
+      family: "BMKkubulim",
+      weight: 400,
+      files: [
+        { file: "BMKkubulim.ttf",    format: "truetype" },
+        { file: "BMKkubulimTTF.ttf", format: "truetype" },
+        { file: "BMKkubulim.otf",    format: "opentype" },
+        { file: "BMKkubulim.woff2",  format: "woff2"    },
+        { file: "BMKkubulim.woff",   format: "woff"     },
+      ],
+    }),
+    buildLocalFontFace({
+      family: "Pretendard",
+      weight: 500,
+      files: [
+        { file: "Pretendard-Medium.otf",   format: "opentype" },
+        { file: "Pretendard-Medium.ttf",   format: "truetype" },
+        { file: "Pretendard-Medium.woff2", format: "woff2"    },
+      ],
+    }),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // ── 배경 이미지 ───────────────────────────────────────────────────────────────
@@ -84,7 +109,7 @@ ${subtitleHtml}  </div>
 
 function renderHighlights(items: string[]): string {
   const listItems = items
-    .slice(0, 3)
+    .slice(0, 2)
     .map((item) => `    <li class="card__highlight"><span>${esc(item)}</span></li>`)
     .join("\n");
   return `  <ul class="card__highlights">\n${listItems}\n  </ul>\n`;
@@ -145,7 +170,7 @@ ${introHtml}${highlightsHtml}${bulletsHtml}${outroHtml}    </div>
 function buildDocument(deck: CardNewsSet, css: string): string {
   const coverHtml  = renderCover(deck.cover);
   const cardsHtml  = deck.cards.map(renderContentCard).join("\n\n");
-  const kkubulimFf = getLocalKkubulimFontFace();
+  const fontFaces  = getLocalFontFaces();
 
   const sourceComment = deck.sourceUrl
     ? `\n    <!-- 출처: ${esc(deck.sourceUrl)} -->`
@@ -163,7 +188,7 @@ function buildDocument(deck: CardNewsSet, css: string): string {
     href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"
     rel="stylesheet"
   />
-  <style>${kkubulimFf}
+  <style>${fontFaces}
     @font-face {
       font-family: 'Pretendard';
       src: url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2') format('woff2');

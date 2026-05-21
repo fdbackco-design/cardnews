@@ -11,16 +11,19 @@
     "dev": "tsx watch src/index.ts",
     "kdca:list": "tsx src/services/kdcaListScraper.ts",
     "daily": "tsx src/jobs/dailyCardNews.ts",
-    "daily:dry-run": "tsx src/jobs/dailyCardNews.ts --dry-run"
+    "daily:dry-run": "tsx src/jobs/dailyCardNews.ts --dry-run",
+    "web": "tsx src/web/server.ts"
   },
   "dependencies": {
     "@types/sharp": "^0.31.1",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.5",
+    "express": "^5.2.1",
     "playwright": "^1.44.0",
     "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^20.14.0",
     "tsx": "^4.15.0",
     "typescript": "^5.4.5"
