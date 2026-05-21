@@ -2,12 +2,17 @@
  * 카드뉴스 카피 품질 검증 — 비문·미완성·길이 초과 차단
  */
 
+/**
+ * 새 카드 디자인(폰트 34pt, 본문 폭 ~900px) 기준 권장 길이 상한.
+ * 시스템 프롬프트(45~80 / 35~70 / 35~70)와 일치시킨다.
+ * 짧게 만드는 KDCA legacy 프롬프트도 같은 상한을 안전하게 통과한다.
+ */
 export const LIMITS = {
   titleMax: 15,
-  introMax: 25,
-  highlightMax: 30,
+  introMax: 80,
+  highlightMax: 70,
   highlightMaxCount: 2,
-  outroMax: 20,
+  outroMax: 70,
 } as const;
 
 export type CardCopyFields = {

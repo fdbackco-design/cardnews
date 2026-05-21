@@ -105,14 +105,28 @@ async function generateCustom() {
   const topic = document.getElementById('custom-topic').value.trim();
   if (!topic) { alert('주제를 입력하세요.'); return; }
 
+  const referenceField = document.getElementById('custom-reference');
+  const referenceText = referenceField.value.trim();
+  if (!referenceText) {
+    alert('참고 내용을 입력해야 카드뉴스를 생성할 수 있습니다.\n\nGemini가 카드뉴스 본문을 작성할 때 반드시 이 내용을 근거로 사용합니다.');
+    referenceField.focus();
+    return;
+  }
+  if (referenceText.length < 80) {
+    const ok = confirm(
+      `참고 내용이 ${referenceText.length}자로 다소 짧습니다.\n` +
+        `최소 200자 이상의 구체적인 정보를 입력하면 카드뉴스 품질이 좋아집니다.\n\n이대로 진행할까요?`
+    );
+    if (!ok) { referenceField.focus(); return; }
+  }
+
   const cardCount = parseInt(document.getElementById('custom-cardcount').value, 10);
-  const referenceText = document.getElementById('custom-reference').value.trim();
 
   await startGenerate({
     mode: 'custom-topic',
     topic,
     cardCount,
-    referenceText: referenceText || undefined,
+    referenceText,
     capture: true,
   });
 }

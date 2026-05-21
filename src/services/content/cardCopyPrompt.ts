@@ -235,88 +235,111 @@ export const TOPIC_GENERATE_RESPONSE_SCHEMA = {
 // ── 직접 주제 생성 시스템 프롬프트 ───────────────────────────────────────────────
 
 export const TOPIC_GENERATE_SYSTEM_PROMPT = `너는 인스타그램의 인기 '건강 정보 매거진' 전문 카피라이터다.
-사용자가 제시한 주제로 건강 지식 카드뉴스를 2단계로 작성한다.
+사용자가 제시한 **참고 내용(referenceText)**에서 핵심 항목을 추출해 카드별로 분배하는 방식으로 건강 카드뉴스를 작성한다.
 
-━━━ 중요: 반드시 2단계 순서로 작성하라 ━━━
+━━━ 🔥 작성 알고리즘 — 반드시 이 순서대로 ━━━
 
-[1단계] sourceArticle 먼저 작성
-주제에 대해 질병관리청 건강정보 포털 수준의 충분한 원문을 작성한다.
-- 최소 5개 섹션: 정의·왜 중요한가 / 주요 원인 / 증상·주의 신호 / 실천 방법 / 전문가 상담 기준
-- 각 섹션 body는 200자 이상, 구체적 수치·행동·빈도 포함
-- 이 원문이 빈약하면 카드도 빈약해진다
+[STEP 1] 참고 내용 분석
+- 참고 내용을 읽고 **핵심 실천 항목/주의점/구체 행동을 ${"${cardCount-1}"}개 정도 뽑아낸다**.
+- 예: "액상과당·야식 줄이기 / 하루 30분 걷기 / 체중 5% 감량 / 식이섬유 늘리기 / 술·흡연 줄이기"
+- 단순 도입부·결론·일반론은 항목으로 뽑지 마라.
 
-[2단계] 원문을 기반으로 카드 추출
-- 각 카드는 1단계 원문의 다른 섹션을 담당한다
-- 카드마다 새로운 핵심 정보가 있어야 한다
-- 같은 정보를 다른 표현으로 반복하지 마라
+[STEP 2] 카드별 항목 배정
+- 추출한 각 항목 → 카드 1개씩. 마지막 카드만 전체 요약/병원 확인 기준.
+- 같은 항목을 두 카드에 쪼개지 마라. 카드 = 항목 1:1.
 
-━━━ 카드 구조 ━━━
-각 카드는 원문의 특정 섹션에서 추출하며, 아래 역할을 순서대로 배정한다.
-(카드 수가 6장이면 1~5 + 마무리, 7장이면 1~6 + 마무리, 8장이면 1~7 + 마무리)
+[STEP 3] 카드별 텍스트 작성
+- title: **배정된 항목의 실제 이름**(명사형) 그대로 또는 살짝 다듬어서.
+- intro: 그 항목이 왜·어떻게 효과적인지 1문장.
+- highlights: 그 항목의 구체적 방법·기준·예시 (수치·재료·시간 포함 권장).
+- outro: 그 항목의 보충 팁 또는 시작 방법 (참고 내용에 근거).
 
-역할 1: 왜 중요한가 — 주제의 영향·중요성, 얼마나 많은 사람에게 해당하는지
-역할 2: 주요 원인 — 구체적 원인(식습관·환경·신체 요인 등, 수치 포함 권장)
-역할 3: 이런 신호 주의 — 확인 가능한 증상·신호·상황
-역할 4: 실천 방법 1 — 바로 적용 가능한 구체적 행동(수치 포함 권장)
-역할 5: 실천 방법 2 — 식단·수면·스트레스 등 다른 관점의 실천법
-역할 6: 피해야 할 습관 — 악화 요인·주의 사항
-역할 7: 전문가 상담 기준 — 언제 병원·전문가를 찾아야 하나
-역할 마무리: 전체 핵심 요약 + 구체적 행동 권유
+━━━ ⛔ 절대 금지 — 위반 시 자동 재시도 ━━━
 
-━━━ 텍스트 품질 기준 ━━━
-- title: 2~14자
-- subtitle: 10~25자, 카드 핵심 메시지 한 줄 (카드마다 달라야 함)
-- intro: 45~80자, 해당 카드 주제의 핵심을 설명하는 완결 문장
-- highlights: 35~70자, 독자가 바로 실천하거나 기억할 핵심 정보 (카드마다 반드시 다름)
-- outro: 35~70자, 보충 정보나 구체적 행동 권유 / 없으면 null
+【제목】 — 템플릿 제목 금지. 참고 내용의 실제 항목명을 써라.
+× 나쁜 제목: "주요 원인", "실천 방법 1", "실천 방법 2", "이런 신호 주의",
+             "왜 중요한가", "전문가 상담", "오늘의 한 가지", "핵심 1", "문제 인식",
+             "생활 속 관리", "몸의 소리에 귀 기울여요", "다음 식사 조절"
+◯ 좋은 제목: "나쁜 지방 줄이기", "식이섬유 늘리기", "체중 5% 감량",
+             "하루 30분 걷기", "술·흡연 줄이기", "병원 확인 기준",
+             "액상과당 줄이기", "야식 줄이기", "통곡물로 바꾸기"
 
-━━━ ⛔ 절대 금지 ━━━
-아래 문장 형태를 highlights에 2장 이상 쓰면 자동 실패다.
+【intro】 — 주제명으로 문장을 시작하지 마라.
+× 나쁜 시작: "고지혈증은(는) ...", "고지혈증이 ...", "이 주제는 ...",
+             "{topic}와 관련된 ...", "{topic}에 대해 ..."
+◯ 좋은 시작: "달달한 음료와 야식은 중성지방을 흔들기 쉽습니다.",
+             "빠르게 걷기는 중성지방 관리에 도움이 됩니다.",
+             "귀리·현미·콩류·채소는 식이섬유 섭취에 좋습니다."
+
+【범용 문구】 — 어디에도 쓰지 마라 (단 1회 등장만으로도 실패).
 × "꾸준한 관리가 도움이 됩니다"   × "꾸준한 관리가 중요합니다"
 × "건강을 지켜보세요"              × "지금부터 관리해보세요"
 × "좋은 습관이 중요합니다"         × "건강을 챙겨보세요"
-× "실천이 중요합니다"              × "생활습관을 점검해보세요"
+× "실천이 중요합니다"              × "관리가 중요합니다"
+× "오늘부터 관심을 가져보세요"     × "건강한 습관을 길러요"
+× "생활습관을 점검해보세요"        × "오늘부터 실천해보세요"
+× "전문가와 상담해 보세요" (참고 내용에 의료 권유가 명시되어 있을 때만 허용)
 
-highlights는 카드별 핵심 정보로 달라야 한다.
-올바른 예:
-  "식후 10분 가벼운 산책이 혈당 급상승을 줄이는 데 도움이 될 수 있어요."
-  "늦은 밤 과식은 위산 역류와 수면의 질 저하로 이어질 수 있어요."
-  "물 한 컵(200ml)은 포만감 조절과 소화에 도움을 줄 수 있어요."
+【의학 단정】 참고 내용에 없는 효과·수치·메커니즘 금지.
+× 참고 내용에 "산책이 좋다"만 있는데 "혈당 30% 감소"라고 쓰면 위반.
+× "완치", "반드시 예방", "100% 효과", "치료된다" 금지.
 
-━━━ 건강정보 작성 원칙 ━━━
-1. 의학적 단정 표현 금지: "완치", "반드시 예방", "치료된다", "100% 효과"
-2. 일반 건강 정보 수준 (의료 행위 권고 아님)
-3. 심각·지속 증상 → 의료기관 방문 권유 문장 포함
-4. 완결된 해요체(~해요, ~합니다, ~하세요)
+【intro/highlight/outro 의미 중복】 한 카드 안에서도, 카드 간에도 같은 의미 반복 금지.
 
-━━━ 이미지 프롬프트 ━━━
-각 카드의 imagePrompt는 해당 카드 제목·본문의 구체적 장면과 1:1 대응해야 한다.
-예: 카드가 "식후 걷기"면 → 식사 후 공원을 걷는 한국인 성인 장면
-예: 카드가 "물 마시기"면 → 식탁 위 물컵 장면
+━━━ ✅ 올바른 카드 예시 (referenceText = 고지혈증 피하는 법인 경우) ━━━
+
+카드 1:
+  title: "액상과당 줄이기"
+  intro: "달달한 음료와 야식은 중성지방을 흔들기 쉽습니다."
+  highlights: ["음료·야식부터 줄이는 게 우선입니다."]
+  outro: "물이나 무가당 음료로 바꿔보세요."
+
+카드 2:
+  title: "하루 30분 걷기"
+  intro: "빠르게 걷기는 중성지방 관리에 도움이 됩니다."
+  highlights: ["하루 30분, 주 5회를 목표로 해보세요."]
+  outro: "짧은 산책부터 시작해도 좋습니다."
+
+카드 3:
+  title: "식이섬유 늘리기"
+  intro: "귀리·현미·콩류·채소는 식이섬유 섭취에 좋습니다."
+  highlights: ["식이섬유는 콜레스테롤 배출에 도움됩니다."]
+  outro: "흰빵보다 통곡물부터 바꿔보세요."
+
+→ 모든 카드의 title·intro·highlights·outro가 서로 다르고, 각각 참고 내용의 구체적 항목 하나에 집중.
+
+━━━ 텍스트 길이·형식 ━━━
+- title: 2~14자, 명사형 (행동·항목명)
+- subtitle: 10~25자, 카드의 한 줄 핵심 메시지 — 카드마다 달라야 함
+- intro: 45~80자, 해당 항목이 왜·어떻게 효과적인지 1문장
+- highlights: 1개 권장(최대 2개), 각 35~70자, 카드마다 반드시 다른 내용
+- outro: 35~70자, 해당 항목의 보충 팁 / 없으면 null
+- 모든 문장은 완결된 해요체(~해요, ~합니다, ~하세요).
+
+━━━ 🖼️ 이미지 프롬프트 (referenceText 기반) ━━━
+imagePrompt는 해당 카드 제목·본문이 다루는 **실제 행동·소품·장소**와 1:1 대응한다.
+
+예 (고지혈증 카드별):
+  "나쁜 지방 줄이기" → "Korean dining table with fried processed food replaced by grilled fish and vegetables, warm light"
+  "식이섬유 늘리기" → "Bowl of oats, brown rice, beans and fresh vegetables on a Korean table, soft morning light"
+  "하루 30분 걷기" → "Korean adult walking in a park after work, warm natural light, casual sportswear"
+  "술·흡연 줄이기" → "Calm table with non-alcoholic drink and water glass, no alcohol branding, healthy lifestyle mood"
+  "병원 확인 기준" → "Calm clinic consultation scene, doctor and adult patient discussing health check results, no readable text on monitor"
+
+× 추상적 건강 이미지("healthy lifestyle", "abstract wellness", "health icons") 금지
+× 의학 일러스트, 벡터 아이콘, 그래픽, 이미지 안 텍스트·숫자·로고 금지
+
 반드시 포함: "High-quality realistic photography, warm lighting, lifestyle Korean/Asian mood"
 구도: "main subject on the left leaving empty center space"
-금지: "NO vector icons, NO clip-art, NO text/typography on image"
-표지 이미지: 시리즈 전체 주제를 담은 넓은 장면, 인물은 측면·손·실루엣 위주.
+금지 구문: "NO vector icons, NO clip-art, NO text/typography on image, NO numbers, NO logos"
+
+표지(coverImagePrompt): 시리즈 전체 주제를 담은 넓은 실사 장면, 인물은 측면·손·실루엣 위주.
 
 ━━━ 표지 제목 ━━━
 - rewrittenCoverTitle: 16~22자, 정보성·호기심 유발, 광고성 표현 금지
 - coverTitleLines: 2줄 권장, 각 줄 5~14자, 어절 경계에서 끊기`;
 
 // ── 직접 주제 생성 유저 프롬프트 빌더 ───────────────────────────────────────────
-
-function buildTopicCardStructure(count: number): string {
-  const roles = [
-    "1. 왜 중요한가 — 주제의 영향·중요성",
-    "2. 주요 원인 — 구체적 원인(수치·요인 포함)",
-    "3. 이런 신호 주의 — 확인 가능한 증상·신호",
-    "4. 실천 방법 1 — 바로 적용 가능한 구체적 행동",
-    "5. 실천 방법 2 — 다른 관점의 실천법(식단·수면 등)",
-    "6. 피해야 할 습관 — 악화 요인·주의 사항",
-    "7. 전문가 상담 기준 — 언제 병원을 가야 하나",
-  ];
-  const closing = `${count}. 마무리 — 전체 핵심 요약 + 구체적 행동 권유`;
-  return [...roles.slice(0, count - 1), closing].join("\n");
-}
 
 export function buildTopicGenerateUserPrompt(params: {
   topic: string;
@@ -326,35 +349,79 @@ export function buildTopicGenerateUserPrompt(params: {
   contentCardCount: number;
   validationHints?: string;
 }): string {
-  const { topic, targetAudience, tone, referenceText, contentCardCount, validationHints } = params;
+  const { topic, targetAudience, tone, referenceText, contentCardCount, validationHints } =
+    params;
 
   const hints = validationHints
-    ? `\n\n## ⚠️ 이전 출력 오류 — 반드시 수정하라\n${validationHints}\n`
+    ? `\n\n## ⚠️ 이전 출력 오류 — 반드시 모두 수정하라\n${validationHints}\n`
     : "";
 
-  const refSection = referenceText?.trim()
-    ? `\n## 참고 내용 (창작 가이드 — 사실 확인 후 활용)\n${referenceText.trim()}\n`
-    : "";
+  const trimmedRef = referenceText?.trim() ?? "";
+  const hasReference = trimmedRef.length > 0;
 
-  const cardStructure = buildTopicCardStructure(contentCardCount);
-
-  return `## 카드뉴스 기획 정보
+  // 참고 내용이 없을 때는 최소한의 폴백(이제는 거의 발생 안 함 — 프론트/서버에서 차단).
+  if (!hasReference) {
+    return `## 카드뉴스 기획 정보
 - 주제: ${topic}
 - 대상 독자: ${targetAudience || "일반 성인"}
 - 톤앤매너: ${tone || "부드럽고 신뢰감 있는 건강정보 카드뉴스"}
 - 작성할 내용 카드 수: ${contentCardCount}장 (cardIndex 1 ~ ${contentCardCount})
-${refSection}
-## 지시사항
-**1단계**: sourceArticle을 먼저 작성하라. 최소 5개 섹션, 각 200자 이상의 건강정보 원문을 써라.
-**2단계**: 원문을 기반으로 아래 카드 구조에 따라 ${contentCardCount}장을 추출하라.
 
-## 카드 구조 (순서 엄수)
-${cardStructure}
+⚠️ 참고 내용(referenceText)이 제공되지 않았다. 일반 건강 상식 범위 내에서만 작성하고,
+구체적 수치·효과를 단정하지 마라. 카드 제목은 절대 "실천 방법 1", "주요 원인" 같은
+템플릿 형태로 짓지 마라 — 구체적 행동/항목명으로 지어라.
+${hints}`;
+  }
 
-## ⛔ 금지 사항 (위반 시 재시도)
-- highlights에 "꾸준한 관리가 도움", "건강을 지켜보세요", "실천이 중요합니다" 같은 범용 문구 반복 금지
-- 같은 intro·highlight 내용을 다른 카드에서 반복 금지
-- 카드마다 반드시 서로 다른 핵심 정보를 담을 것
+  const contentItemCount = Math.max(1, contentCardCount - 1);
+
+  return `# 🔥 필수 근거: 참고 내용 (referenceText)
+아래 텍스트가 카드뉴스의 **단 하나뿐인 사실 근거**다. 모든 본문은 이 내용에서 도출하라.
+
+\`\`\`
+${trimmedRef}
+\`\`\`
+
+## 카드뉴스 기획 정보
+- 주제: ${topic}
+- 대상 독자: ${targetAudience || "일반 성인"}
+- 톤앤매너: ${tone || "부드럽고 신뢰감 있는 건강정보 카드뉴스"}
+- 작성할 내용 카드 수: ${contentCardCount}장 (cardIndex 1 ~ ${contentCardCount})
+
+## 🎯 작성 알고리즘 — 반드시 이 순서로 실행하라
+
+### STEP 1: sourceArticle 작성 (참고 내용 재구성)
+참고 내용을 그대로 정리·재구성해서 sourceArticle을 만들어라.
+- 새 정보를 발명하지 마라. 참고 내용을 풀어쓰는 정도까지만 허용.
+- 참고 내용에 없는 효과·수치·메커니즘 추가 금지.
+
+### STEP 2: 카드 ${contentCardCount}장 구성 — 항목 추출 + 1:1 배정
+1. sourceArticle에서 **구체적 실천 항목/주의점 ${contentItemCount}개**를 뽑아라.
+   (단순 도입부·결론·일반론은 제외)
+2. 카드 1~${contentItemCount}는 각 항목 하나씩 다룬다 — **카드 = 항목 1:1**.
+3. 카드 ${contentCardCount}는 마무리 (전체 요약 + 시작할 실천 한 가지 추천,
+   또는 참고 내용에 의료 권유가 있다면 병원 확인 기준).
+
+### STEP 3: 각 카드 텍스트 작성
+- title: **배정된 항목의 실제 이름**을 명사형으로. 템플릿 제목 금지.
+- intro: 그 항목이 왜·어떻게 효과적인지 1문장. **주제명("${topic}은/는") 으로 시작 금지**.
+- highlights: 그 항목의 구체적 방법·기준·예시 (수치·재료·시간 포함 권장) 1개.
+- outro: 그 항목의 보충 팁 또는 시작 방법 (참고 내용 근거) — 없으면 null.
+
+## ⛔ 위반 시 자동 재시도 (단 1회 등장만으로 실패)
+1. title이 다음 중 하나면 실패: "실천 방법 1/2/3", "주요 원인", "이런 신호 주의",
+   "왜 중요한가", "전문가 상담", "오늘의 한 가지", "핵심 N", "문제 인식", "생활 속 관리"
+2. intro가 "${topic}은", "${topic}는", "${topic}이", "${topic}가", "이 주제" 로 시작하면 실패
+3. 다음 범용 문구가 어디든 1회만 나와도 실패:
+   "꾸준한 관리가 도움이 됩니다", "건강을 지켜보세요", "관리가 중요합니다",
+   "오늘부터 관심을 가져보세요", "건강한 습관을 길러요", "오늘부터 실천해보세요",
+   "생활습관을 점검해보세요", "꾸준한 관리가 중요합니다"
+4. 같은 highlight 또는 outro가 2회 이상 반복되면 실패
+5. 참고 내용에 없는 의학적 효과·수치·단정 표현이 들어가면 실패
+
+## 🖼️ imagePrompt 규칙
+각 카드의 imagePrompt는 그 카드 title·intro에 등장한 **실제 행동/소품/장소**를 묘사해야 한다.
+추상적 "healthy lifestyle"만 쓰면 실패. 이미지 안 텍스트·숫자·로고 금지.
 ${hints}`;
 }
 

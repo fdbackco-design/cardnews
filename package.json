@@ -12,7 +12,7 @@
     "kdca:list": "tsx src/services/kdcaListScraper.ts",
     "daily": "tsx src/jobs/dailyCardNews.ts",
     "daily:dry-run": "tsx src/jobs/dailyCardNews.ts --dry-run",
-    "web": "tsx src/web/server.ts"
+    "web": "tsx watch src/web/server.ts"
   },
   "dependencies": {
     "@types/sharp": "^0.31.1",

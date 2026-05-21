@@ -208,7 +208,20 @@ async function runPipeline(job: CardNewsJob): Promise<void> {
 
   if (input.mode === "custom-topic") {
     resolvedTopic = input.topic ?? "건강 정보";
-    skipStep(job, 1, `직접 주제 입력: ${resolvedTopic}`);
+    const refLen = (input.referenceText ?? "").trim().length;
+    if (refLen === 0) {
+      failStep(
+        job,
+        1,
+        "custom-topic 모드에서는 referenceText(참고 내용)가 필수입니다."
+      );
+      return;
+    }
+    skipStep(
+      job,
+      1,
+      `직접 주제 입력: ${resolvedTopic} (참고 내용 ${refLen}자 기반)`
+    );
   } else {
     startStep(job, 1, "KDCA 국가건강정보포털에서 데이터 수집 중...");
     try {

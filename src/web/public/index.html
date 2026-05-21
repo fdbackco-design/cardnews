@@ -109,8 +109,19 @@
                 </select>
               </div>
               <div class="form-group">
-                <label class="form-label">참고 내용 <span class="text-muted" style="font-weight:400">(선택)</span></label>
-                <textarea id="custom-reference" class="form-control" rows="3" placeholder="예: 걷기, 수분 섭취, 수면, 식습관 중심&#10;Gemini가 카드 구성 시 참고합니다. 사실 확인 후 사용됩니다."></textarea>
+                <label class="form-label">
+                  참고 내용 *
+                  <span class="text-muted" style="font-weight:400; font-size:0.85em">
+                    (필수 — Gemini가 이 내용을 최우선 근거로 카드뉴스를 작성합니다)
+                  </span>
+                </label>
+                <textarea
+                  id="custom-reference"
+                  class="form-control"
+                  rows="8"
+                  required
+                  placeholder="여기에 카드뉴스로 만들고 싶은 실제 내용·구조·실천 방법을 구체적으로 적어주세요.&#10;&#10;예시) 과식 후 대처법&#10;1) 바로 눕지 말기 — 역류성 식도염 예방&#10;2) 10~20분 가벼운 산책 — 혈당 안정&#10;3) 미지근한 물을 조금씩&#10;4) 다음 끼니 굶지 않기 — 단백질 중심으로&#10;...&#10;&#10;Gemini는 이 내용에서 벗어난 의학적 단정을 추가하지 않습니다."
+                ></textarea>
               </div>
               <div class="mt-4">
                 <button class="btn btn-primary" id="btn-generate-custom" onclick="generateCustom()">

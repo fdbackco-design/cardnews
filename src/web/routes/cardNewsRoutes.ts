@@ -32,6 +32,27 @@ cardNewsRoutes.post("/generate", (req: Request, res: Response) => {
     return;
   }
 
+  const rawReference = body["referenceText"];
+  const referenceText =
+    typeof rawReference === "string" ? rawReference.trim() : "";
+
+  if (mode === "custom-topic") {
+    const topic =
+      typeof body["topic"] === "string" ? (body["topic"] as string).trim() : "";
+    if (!topic) {
+      res.status(400).json({ error: "topic은 필수입니다." });
+      return;
+    }
+    if (!referenceText) {
+      res.status(400).json({
+        error:
+          "custom-topic 모드에서는 referenceText(참고 내용)가 필수입니다. " +
+          "Gemini는 이 내용을 근거로 카드뉴스 본문을 작성합니다.",
+      });
+      return;
+    }
+  }
+
   const input: GenerateInput = {
     mode,
     keyword: body["keyword"] as string | undefined,
@@ -41,7 +62,7 @@ cardNewsRoutes.post("/generate", (req: Request, res: Response) => {
     targetAudience: body["targetAudience"] as string | undefined,
     cardCount: body["cardCount"] ? Number(body["cardCount"]) : undefined,
     tone: body["tone"] as string | undefined,
-    referenceText: body["referenceText"] as string | undefined,
+    referenceText: referenceText || undefined,
     capture: body["capture"] !== false,
   };
 

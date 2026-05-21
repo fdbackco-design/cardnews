@@ -146,11 +146,18 @@ export function buildFallbackImagePrompt(params: {
 
 function normalizeImagePrompt(
   raw: string | undefined,
-  fallback: string
+  fallback: string,
+  context?: { cardIndex?: number; title?: string }
 ): string {
   const p = String(raw ?? "").trim();
-  if (p.length < 40) return fallback;
-  if (!/[a-zA-Z]/.test(p)) return fallback;
+  if (p.length < 40 || !/[a-zA-Z]/.test(p)) {
+    if (context) {
+      console.warn(
+        `[ContentGenerator] imagePrompt fallback 적용 — card ${context.cardIndex ?? "?"} "${context.title ?? ""}" (raw 길이=${p.length})`
+      );
+    }
+    return fallback;
+  }
   return p;
 }
 
@@ -225,7 +232,8 @@ function normalizeLlmDeckCard(
       outro: repaired.outro,
       topic,
       cardIndex,
-    })
+    }),
+    { cardIndex, title: repaired.title }
   );
 
   const subtitle = raw.subtitle?.trim() || undefined;
@@ -520,37 +528,98 @@ export function logCardCopyValidation(cards: CardCopyFields[]): void {
 
 // ── 직접 주제 생성 전용 상수·검증 ───────────────────────────────────────────────
 
-const GENERIC_PHRASES_DENY = [
+/** 1회만 등장해도 실패 처리하는 범용·추상 문구 */
+const HARD_GENERIC_PHRASES = [
   "꾸준한 관리가 도움이 됩니다",
   "꾸준한 관리가 중요합니다",
   "꾸준히 관리가 도움",
   "건강을 지켜보세요",
+  "건강을 챙겨보세요",
   "지금부터 관리해보세요",
   "좋은 습관이 중요합니다",
-  "건강을 챙겨보세요",
+  "관리가 중요합니다",
   "실천이 중요합니다",
+  "오늘부터 실천해보세요",
+  "오늘부터 관심을 가져보세요",
+  "건강한 습관을 길러요",
+  "건강한 습관을 길러보세요",
   "생활습관을 점검해보세요",
 ];
 
-function validateTopicDeckUniqueness(cards: GeneratedCardCopy[]): string[] {
+/** 절대 쓰면 안 되는 템플릿 제목 — title 한정 */
+const TEMPLATE_TITLE_PATTERNS: RegExp[] = [
+  /^실천\s*방법\s*\d*$/,
+  /^주요\s*원인$/,
+  /^이런\s*신호\s*주의$/,
+  /^왜\s*중요(한가|할까요)\??$/,
+  /^전문가\s*상담$/,
+  /^오늘의?\s*한\s*가지$/,
+  /^핵심\s*\d+$/,
+  /^문제\s*인식$/,
+  /^생활\s*속\s*관리$/,
+  /^몸의?\s*소리에\s*귀\s*기울/,
+  /^다음\s*식사\s*조절$/,
+];
+
+function isTemplateTitle(title: string): boolean {
+  const t = title.trim();
+  return TEMPLATE_TITLE_PATTERNS.some((re) => re.test(t));
+}
+
+function startsWithTopic(text: string, topic: string): boolean {
+  const t = text.trim();
+  if (!t || !topic) return false;
+  // "{topic}은/는/이/가" 또는 "{topic}와/과 관련된", "이 주제" 패턴
+  const escTopic = topic.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^\\s*(${escTopic})\\s*(은|는|이|가|와|과|에|의|에는|에게|에서)`);
+  if (re.test(t)) return true;
+  if (/^\s*이\s*주제(는|은|이|가)/.test(t)) return true;
+  return false;
+}
+
+function validateTopicDeckUniqueness(
+  cards: GeneratedCardCopy[],
+  topic: string
+): string[] {
   const errors: string[] = [];
 
-  // 중복 intro 검사
+  // 1) 템플릿 제목 검사 — 1회만 나와도 실패
+  for (let i = 0; i < cards.length; i++) {
+    const title = (cards[i]?.title ?? "").trim();
+    if (isTemplateTitle(title)) {
+      errors.push(
+        `[카드 ${i + 1}] 템플릿 제목 사용 — "${title}" (참고 내용의 실제 항목명을 쓰라)`
+      );
+    }
+  }
+
+  // 2) intro가 주제명으로 시작 — 1회만 나와도 실패
+  for (let i = 0; i < cards.length; i++) {
+    const intro = (cards[i]?.intro ?? "").trim();
+    if (startsWithTopic(intro, topic)) {
+      errors.push(
+        `[카드 ${i + 1}] intro가 주제명("${topic}")으로 시작 — "${intro.slice(0, 40)}"`
+      );
+    }
+  }
+
+  // 3) 중복 intro 검사
   const introSet = new Set<string>();
   for (let i = 0; i < cards.length; i++) {
     const intro = (cards[i]?.intro ?? "").trim();
-    if (introSet.has(intro)) {
-      errors.push(`[카드 ${i + 1}] intro가 이전 카드와 중복: "${intro.slice(0, 30)}"`);
-    } else {
+    if (intro && introSet.has(intro)) {
+      errors.push(`[카드 ${i + 1}] intro 중복: "${intro.slice(0, 30)}"`);
+    } else if (intro) {
       introSet.add(intro);
     }
   }
 
-  // 중복 highlight 검사
+  // 4) 중복 highlight 검사 (2회 이상 = 실패)
   const hlCount = new Map<string, number>();
   for (const card of cards) {
     for (const h of card.highlights ?? []) {
       const key = h.trim();
+      if (!key) continue;
       hlCount.set(key, (hlCount.get(key) ?? 0) + 1);
     }
   }
@@ -560,19 +629,38 @@ function validateTopicDeckUniqueness(cards: GeneratedCardCopy[]): string[] {
     }
   }
 
-  // 금지 범용 문구 반복 검사 (2회 이상 등장 시 실패)
-  const genericCount = new Map<string, number>();
+  // 5) 중복 outro 검사 (2회 이상 = 실패, null/빈값 제외)
+  const outroCount = new Map<string, number>();
   for (const card of cards) {
+    const o = (card.outro ?? "").trim();
+    if (!o) continue;
+    outroCount.set(o, (outroCount.get(o) ?? 0) + 1);
+  }
+  for (const [o, count] of outroCount) {
+    if (count >= 2) {
+      errors.push(`outro 중복 ${count}회: "${o.slice(0, 40)}"`);
+    }
+  }
+
+  // 6) 범용 문구 — 단 1회만 등장해도 실패
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i]!;
     const allText = [card.intro, ...(card.highlights ?? []), card.outro ?? ""].join(" ");
-    for (const phrase of GENERIC_PHRASES_DENY) {
+    for (const phrase of HARD_GENERIC_PHRASES) {
       if (allText.includes(phrase)) {
-        genericCount.set(phrase, (genericCount.get(phrase) ?? 0) + 1);
+        errors.push(`[카드 ${i + 1}] 금지 범용 문구 사용: "${phrase}"`);
       }
     }
   }
-  for (const [phrase, count] of genericCount) {
-    if (count >= 2) {
-      errors.push(`금지 범용 문구 ${count}회 반복: "${phrase}"`);
+
+  // 7) 카드 제목 전체 중복 검사
+  const titleSet = new Set<string>();
+  for (let i = 0; i < cards.length; i++) {
+    const title = (cards[i]?.title ?? "").trim();
+    if (titleSet.has(title)) {
+      errors.push(`[카드 ${i + 1}] title 중복: "${title}"`);
+    } else if (title) {
+      titleSet.add(title);
     }
   }
 
@@ -609,9 +697,12 @@ export async function generateCardNewsFromTopic(params: {
         validationHints,
       });
 
+      const refLen = (referenceText ?? "").trim().length;
       console.log(
         `[ContentGenerator] 주제 기반 2단계 생성 ${attempt}/${MAX_ATTEMPTS} ` +
-          `(카드 ${contentCardCount}장, topic="${topic}", model=${resolveTextModel()})`
+          `(카드 ${contentCardCount}장, topic="${topic}", ` +
+          `referenceText=${refLen > 0 ? `${refLen}자 (필수 근거)` : "없음"}, ` +
+          `model=${resolveTextModel()})`
       );
 
       const rawText = await callGeminiDeckRewrite(
@@ -680,11 +771,14 @@ export async function generateCardNewsFromTopic(params: {
           (r.outro ? isBrokenKorean(r.outro) : false)
       );
 
-      // 중복·범용 문구 검사 (topic 전용)
-      const uniqueErrors = validateTopicDeckUniqueness(contentCards);
+      // 중복·범용 문구·템플릿 제목·주제 시작 검사
+      const uniqueErrors = validateTopicDeckUniqueness(contentCards, topic);
 
       if (!hasBroken && uniqueErrors.length === 0) {
-        console.log(`[ContentGenerator] 주제 기반 생성 통과 (시도 ${attempt})`);
+        console.log(
+          `[ContentGenerator] 주제 기반 생성 통과 (시도 ${attempt}) — ` +
+            `제목: ${contentCards.map((c) => `"${c.title}"`).join(", ")}`
+        );
         logImagePrompts(deck);
         return deck;
       }
@@ -697,7 +791,11 @@ export async function generateCardNewsFromTopic(params: {
       retryReasons.push(...uniqueErrors);
 
       validationHints = retryReasons.join("\n");
-      console.warn(`[ContentGenerator] 재시도 필요:\n${validationHints}`);
+      console.warn(
+        `[ContentGenerator] 재시도 필요 (시도 ${attempt}/${MAX_ATTEMPTS}):\n  - ${retryReasons.join(
+          "\n  - "
+        )}`
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[ContentGenerator] 주제 기반 시도 ${attempt} 오류: ${msg}`);
@@ -706,7 +804,7 @@ export async function generateCardNewsFromTopic(params: {
   }
 
   console.warn("[ContentGenerator] 주제 기반 Gemini 최종 실패 — rule fallback");
-  return topicRuleFallback(topic, contentCardCount);
+  return topicRuleFallback(topic, contentCardCount, referenceText);
 }
 
 // ── 주제 기반 fallback 카드 템플릿 (각 카드가 서로 다른 내용) ─────────────────────
@@ -801,27 +899,150 @@ const TOPIC_CARD_TEMPLATES: TopicCardTemplate[] = [
   },
 ];
 
-function topicRuleFallback(topic: string, contentCardCount: number): GeneratedDeckFromLlm {
-  const templates = TOPIC_CARD_TEMPLATES.slice(0, contentCardCount);
+/**
+ * referenceText에서 항목명 후보를 추출한다.
+ *
+ * 휴리스틱:
+ *   - 마크다운 헤딩(`## ...`, `### N. ...`)
+ *   - 불릿 리스트(`* `, `- `, `• `)
+ *   - 번호 리스트(`1. `, `2) `)
+ *   - 굵게 표시된 키워드(`**...**`)
+ * 짧은 문구·구두점 정리 후 중복 제거.
+ */
+function extractReferenceItems(referenceText: string): string[] {
+  if (!referenceText) return [];
+  const lines = referenceText.split(/\r?\n/);
+  const items: string[] = [];
 
-  const contentCards: GeneratedCardCopy[] = templates.map((tmpl, i) => {
-    const cardIndex = i + 1;
-    const title = tmpl.titleFn(topic);
-    return {
-      index: cardIndex,
-      title,
-      subtitle: tmpl.subtitle,
-      intro: tmpl.introFn(topic),
-      highlights: tmpl.highlightsFn(topic),
-      outro: tmpl.outroFn(topic),
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // 헤딩
+    const head = line.match(/^#{2,4}\s+(?:\d+[.)]\s*)?(.+?)\s*$/);
+    if (head) {
+      const t = head[1]!.replace(/[?!.…:]+$/g, "").trim();
+      if (t.length >= 2 && t.length <= 24) items.push(t);
+      continue;
+    }
+
+    // 불릿/번호 리스트
+    const bullet = line.match(/^[*•\-]\s+(.+?)\s*$/);
+    if (bullet) {
+      let t = bullet[1]!.replace(/^\*\*(.+?)\*\*/g, "$1");
+      t = t.replace(/[?!.…:]+$/g, "").trim();
+      if (t.length >= 2 && t.length <= 24) items.push(t);
+      continue;
+    }
+    const numbered = line.match(/^\d+[.)]\s+(.+?)\s*$/);
+    if (numbered) {
+      const t = numbered[1]!.replace(/[?!.…:]+$/g, "").trim();
+      if (t.length >= 2 && t.length <= 24) items.push(t);
+      continue;
+    }
+
+    // 굵은 키워드만 있는 짧은 라인
+    const bold = line.match(/^\*\*(.+?)\*\*\s*$/);
+    if (bold) {
+      const t = bold[1]!.trim();
+      if (t.length >= 2 && t.length <= 24) items.push(t);
+    }
+  }
+
+  // 중복 제거 (앞에서부터 먼저 등장한 것 유지)
+  const dedup: string[] = [];
+  const seen = new Set<string>();
+  for (const it of items) {
+    if (!seen.has(it)) {
+      seen.add(it);
+      dedup.push(it);
+    }
+  }
+  return dedup;
+}
+
+/** 추출된 항목명을 카드 제목으로 정리 (이모지/❌/✅ 같은 prefix 제거, 길이 컷) */
+function normalizeAsCardTitle(item: string): string {
+  let t = item.replace(/^[❌✅⛔️◯×O\s]+/g, "").trim();
+  t = t.replace(/[?!.…:]+$/g, "").trim();
+  if (t.length > 14) {
+    const cut = t.slice(0, 14);
+    const lastSpace = cut.lastIndexOf(" ");
+    t = (lastSpace > 4 ? cut.slice(0, lastSpace) : cut).trim();
+  }
+  return t;
+}
+
+function topicRuleFallback(
+  topic: string,
+  contentCardCount: number,
+  referenceText?: string
+): GeneratedDeckFromLlm {
+  const refItems = extractReferenceItems(referenceText ?? "");
+  const usedRef = refItems.length >= Math.max(2, contentCardCount - 1);
+
+  let contentCards: GeneratedCardCopy[];
+
+  if (usedRef) {
+    console.log(
+      `[ContentGenerator] 폴백: referenceText에서 항목 ${refItems.length}개 추출 — ${refItems.slice(0, contentCardCount - 1).join(", ")}`
+    );
+    const picked = refItems.slice(0, contentCardCount - 1);
+    contentCards = picked.map((item, i) => {
+      const title = normalizeAsCardTitle(item) || `정보 ${i + 1}`;
+      return {
+        index: i + 1,
+        title,
+        subtitle: title,
+        intro: `${title}는 ${topic}에 도움이 되는 실천 항목입니다.`,
+        highlights: [`참고 내용의 '${item}' 항목을 우선적으로 시도해 보세요.`],
+        outro: undefined,
+        imagePrompt: [
+          "High-quality realistic photography, warm lighting, lifestyle Korean/Asian mood.",
+          `Korean adult engaged with ${title} in a natural everyday setting.`,
+          "Main subject on the left leaving empty center space.",
+          "NO vector icons, NO clip-art, NO text/typography on image.",
+        ].join(" "),
+      };
+    });
+
+    // 마지막 카드는 마무리
+    contentCards.push({
+      index: contentCardCount,
+      title: "오늘부터 시작",
+      subtitle: "작은 실천이 먼저",
+      intro: `오늘 하나만 골라 ${topic} 관리에 첫 발을 떼어 보세요.`,
+      highlights: [`참고 내용에서 가장 쉬워 보이는 항목 하나를 골라 일주일만 시도해 보세요.`],
+      outro: undefined,
       imagePrompt: [
         "High-quality realistic photography, warm lighting, lifestyle Korean/Asian mood.",
-        tmpl.imageKeyword + ".",
+        "Korean adult writing health note at a wooden table, soft morning light.",
         "Main subject on the left leaving empty center space.",
         "NO vector icons, NO clip-art, NO text/typography on image.",
       ].join(" "),
-    };
-  });
+    });
+  } else {
+    // referenceText에서 항목을 못 뽑은 경우(거의 없음) — 안전한 기본 템플릿
+    const templates = TOPIC_CARD_TEMPLATES.slice(0, contentCardCount);
+    contentCards = templates.map((tmpl, i) => {
+      const cardIndex = i + 1;
+      const title = tmpl.titleFn(topic);
+      return {
+        index: cardIndex,
+        title,
+        subtitle: tmpl.subtitle,
+        intro: tmpl.introFn(topic),
+        highlights: tmpl.highlightsFn(topic),
+        outro: tmpl.outroFn(topic),
+        imagePrompt: [
+          "High-quality realistic photography, warm lighting, lifestyle Korean/Asian mood.",
+          tmpl.imageKeyword + ".",
+          "Main subject on the left leaving empty center space.",
+          "NO vector icons, NO clip-art, NO text/typography on image.",
+        ].join(" "),
+      };
+    });
+  }
 
   const fb = buildFallbackCoverTitle(topic);
   return {

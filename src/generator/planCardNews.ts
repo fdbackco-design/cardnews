@@ -427,12 +427,15 @@ async function buildNarrativeFromTopic(
 
   while (cards.length < contentCardCount) {
     const i = cards.length;
+    const isLast = i === contentCardCount - 1;
     cards.push({
       type: "content",
       index: i + 1,
-      title: i === contentCardCount - 1 ? "생활 속 관리" : `핵심 ${i + 1}`,
-      intro: `${topic}와 관련된 중요한 정보를 확인해 보세요.`,
-      imageQuery: `${topic} health lifestyle ${i % 2 === 0 ? "dark" : "bright"} background`,
+      title: isLast ? "오늘부터 시작" : "추가 정보",
+      intro: isLast
+        ? "오늘 하나만 골라 시작해 보세요. 일주일 후 변화를 확인해 봅니다."
+        : "참고 내용에 담긴 항목을 살펴보고 자신에게 맞는 방법을 골라 보세요.",
+      imageQuery: `Korean adult ${isLast ? "writing health journal at desk" : "reading health note at home"} natural light lifestyle`,
     });
   }
 
