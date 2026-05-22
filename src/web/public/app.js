@@ -1059,8 +1059,8 @@ function renderEditorForm(index) {
         <input id="ef-intro" type="text" class="form-control" value="${escapeHtml(card.intro || '')}" />
       </div>
       <div class="editor-field mt-3">
-        <label>하이라이트 (줄바꿈으로 구분)</label>
-        <textarea id="ef-highlights" rows="4" class="form-control">${escapeHtml(highlights)}</textarea>
+        <label>하이라이트 문장 ([[강조할 문구]]로 부분 강조)</label>
+        <textarea id="ef-highlights" rows="4" class="form-control" placeholder="늦은 밤 음식은 간에 [[지방으로 쌓이기 쉬워요]]&#10;술자리 후에는 [[수분 섭취]]가 중요해요">${escapeHtml(highlights)}</textarea>
       </div>
       <div class="editor-field mt-3">
         <label>아웃트로</label>

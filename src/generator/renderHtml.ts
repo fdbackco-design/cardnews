@@ -114,11 +114,31 @@ function trimPeriod(text: string): string {
 
 // ── 하이라이트 목록 ───────────────────────────────────────────────────────────
 
+// [[문구]] 패턴이 있으면 해당 부분만 주황 박스, 나머지는 일반 텍스트 (인라인 모드)
+// [[문구]] 없으면 기존대로 줄 전체 주황 박스 (레거시 모드)
+
+const HL_INLINE_RE = /\[\[([^\]]*)\]\]/g;
+
+function renderHighlightItem(text: string): string {
+  const t = trimPeriod(text);
+  if (!t.includes("[[")) {
+    // 레거시: 전체 줄 주황 박스
+    return `    <li class="card__highlight"><span>${esc(t)}</span></li>`;
+  }
+  // 인라인: [[...]] 부분만 주황 박스
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const m of t.matchAll(HL_INLINE_RE)) {
+    if (m.index! > cursor) parts.push(esc(t.slice(cursor, m.index)));
+    parts.push(`<mark class="card__hl-mark">${esc(m[1]!)}</mark>`);
+    cursor = m.index! + m[0].length;
+  }
+  if (cursor < t.length) parts.push(esc(t.slice(cursor)));
+  return `    <li class="card__highlight card__highlight--inline">${parts.join("")}</li>`;
+}
+
 function renderHighlights(items: string[]): string {
-  const listItems = items
-    .slice(0, 2)
-    .map((item) => `    <li class="card__highlight"><span>${esc(trimPeriod(item))}</span></li>`)
-    .join("\n");
+  const listItems = items.slice(0, 2).map(renderHighlightItem).join("\n");
   return `  <ul class="card__highlights">\n${listItems}\n  </ul>\n`;
 }
 

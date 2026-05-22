@@ -331,6 +331,7 @@ body {
   line-height: 1.32;
 }
 
+/* 레거시 모드: 줄 전체 주황 박스 */
 .card__highlight > span {
   display: inline;
   font-family: var(--font-body);
@@ -345,6 +346,27 @@ body {
   -webkit-box-decoration-break: clone;
           box-decoration-break: clone;
   word-break: keep-all;
+}
+
+/* 인라인 모드: [[...]] 부분만 주황 박스, 나머지 일반 텍스트는 흰색 */
+.card__highlight--inline {
+  font-family: var(--font-body);
+  font-size: 34pt;
+  font-weight: 500;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  word-break: keep-all;
+  line-height: 1.4;
+}
+
+.card__hl-mark {
+  display: inline;
+  background-color: var(--brand-orange);
+  color: #111111;
+  padding: 3px 9px 5px;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+          box-decoration-break: clone;
 }
 
 /* ── 불릿 리스트 ──────────────────────────────────────────────────────────── */
