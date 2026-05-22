@@ -267,11 +267,19 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .ig-config-banner--blocked  { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 
 /* ── 로딩 스피너 (버튼용) ──────────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .ig-spinner {
   display: inline-block; width: 14px; height: 14px;
   border: 2px solid currentColor; border-right-color: transparent;
   border-radius: 50%; vertical-align: -2px; margin-right: 6px;
   animation: spin .8s linear infinite;
+}
+.btn-spinner {
+  display: inline-block; width: 13px; height: 13px;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; vertical-align: -2px; margin-right: 5px;
+  animation: spin .75s linear infinite;
 }
 
 /* ── 게시 차단 알림 ──────────────────────────────────────────────────────────── */

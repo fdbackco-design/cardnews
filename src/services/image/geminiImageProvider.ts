@@ -71,6 +71,7 @@ async function callPredict(
           aspectRatio:       "4:5",
           personGeneration:  "ALLOW_ADULT",
           safetyFilterLevel: "BLOCK_SOME",
+          // negativePrompt: Imagen API에서 더 이상 지원하지 않으므로 제거
         },
       }),
     });
@@ -114,7 +115,11 @@ async function callGenerateContent(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents:         [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+        generationConfig: {
+          // responseModalities에 IMAGE만 지정 — TEXT 포함 시 텍스트 응답이 우선되어 이미지 미반환
+          responseModalities: ["IMAGE"],
+          // 비율은 generateContent API에서 지원하지 않으므로 프롬프트 텍스트로만 제어
+        },
       }),
     });
 
@@ -151,6 +156,58 @@ function callModel(
   return model.startsWith("imagen-")
     ? callPredict(model, prompt, apiKey)
     : callGenerateContent(model, prompt, apiKey);
+}
+
+// ── 블러 배경 채우기 ──────────────────────────────────────────────────────────
+// 단색(흰색·회색) 여백 없이 원본 이미지를 활용한 블러 배경으로 target 크기를 채운다.
+//
+// 알고리즘:
+//   1. 원본을 cover 확대 후 blur → 배경 (단색 없음)
+//   2. 원본을 비율 유지하며 target 안에 꽉 맞게 축소 → 전경
+//   3. 전경을 배경 중앙에 합성 → 최종
+//
+// 원본이 이미 target 비율과 같으면 전경이 배경 전체를 덮어 blur가 보이지 않는다.
+
+async function buildBlurredFill(
+  source:  Buffer,
+  targetW: number,
+  targetH: number,
+): Promise<Buffer> {
+  const { width: srcW = targetW, height: srcH = targetH } =
+    await sharp(source).metadata();
+
+  // 배경: cover crop → 강한 blur (단색 아닌 원본 텍스처로 채움)
+  const bg = await sharp(source)
+    .resize(targetW, targetH, { fit: "cover", position: "center" })
+    .blur(24)
+    .png()
+    .toBuffer();
+
+  // 전경: 비율 유지하며 target 안에 완전히 들어오게 단순 스케일
+  const scale = Math.min(targetW / srcW, targetH / srcH);
+  const fgW   = Math.round(srcW * scale);
+  const fgH   = Math.round(srcH * scale);
+
+  // 이미 target 크기이면 배경(= 블러 없는 원본)을 재생성해 반환
+  if (fgW === targetW && fgH === targetH) {
+    return sharp(source)
+      .resize(targetW, targetH, { fit: "cover", position: "center" })
+      .png()
+      .toBuffer();
+  }
+
+  const fg   = await sharp(source)
+    .resize(fgW, fgH, { fit: "fill" })
+    .png()
+    .toBuffer();
+
+  const left = Math.round((targetW - fgW) / 2);
+  const top  = Math.round((targetH - fgH) / 2);
+
+  return sharp(bg)
+    .composite([{ input: fg, left, top }])
+    .png()
+    .toBuffer();
 }
 
 // ── 공개 API ──────────────────────────────────────────────────────────────────
@@ -213,28 +270,41 @@ export async function generateImagenCardImage(params: {
     return null;
   }
 
-  // ── 파일 저장 (항상 CARD_IMAGE_WIDTH×CARD_IMAGE_HEIGHT 로 cover crop) ─────
+  // ── 파일 저장 (반드시 CARD_IMAGE_WIDTH×CARD_IMAGE_HEIGHT, 단색 여백 금지) ─────
+  // 보정 방식: 원본 블러 배경 + 원본 중앙 합성 (회색·흰색 padding 절대 금지)
   try {
     fs.mkdirSync(path.dirname(localPath), { recursive: true });
     const rawBuffer = Buffer.from(result.bytes, "base64");
-    let cropped = await sharp(rawBuffer)
-      .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "cover", position: "center" })
-      .png()
-      .toBuffer();
 
-    // 치수 최종 검증 — 차이가 있으면 fit:fill로 강제 보정 (Pexels fallback 없음)
-    const meta = await sharp(cropped).metadata();
-    if (meta.width !== CARD_IMAGE_WIDTH || meta.height !== CARD_IMAGE_HEIGHT) {
-      console.warn(
-        `[GeminiImage] 치수 보정: ${meta.width}×${meta.height} → ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT}`,
-      );
-      cropped = await sharp(cropped)
-        .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "fill" })
+    // 1단계: 흰색 letterbox/padding 제거 (API가 흰 테두리를 포함할 경우 대비)
+    const trimmedBuffer = await sharp(rawBuffer)
+      .trim({ background: "#ffffff", threshold: 10 })
+      .toBuffer()
+      .catch(() => rawBuffer);
+
+    // 2단계: 표지 vs 본문 보정 방식 분기
+    //   표지(cover): cover crop — 전체 프레임을 이미지로 꽉 채움, 블러 없음
+    //   본문(content): blur fill — 비율이 다를 때 단색 대신 블러 배경으로 채움
+    let finalBuffer: Buffer;
+    if (params.cardType === "cover") {
+      finalBuffer = await sharp(trimmedBuffer)
+        .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "cover", position: "center" })
         .png()
         .toBuffer();
+    } else {
+      finalBuffer = await buildBlurredFill(trimmedBuffer, CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT);
     }
 
-    fs.writeFileSync(localPath, cropped);
+    // 3단계: 치수 최종 검증
+    const meta = await sharp(finalBuffer).metadata();
+    if (meta.width !== CARD_IMAGE_WIDTH || meta.height !== CARD_IMAGE_HEIGHT) {
+      console.warn(
+        `[GeminiImage] 치수 검증 실패(${meta.width}×${meta.height}) — Pexels fallback`,
+      );
+      return null;
+    }
+
+    fs.writeFileSync(localPath, finalBuffer);
     console.log(
       `[GeminiImage] generated (${result.model}): ${path.basename(localPath)} ` +
         `(${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT})`,

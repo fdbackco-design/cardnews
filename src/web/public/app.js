@@ -1074,7 +1074,7 @@ function renderEditorForm(index) {
     ${fieldsHtml}
     <div class="editor-actions">
       <button class="btn btn-primary btn-sm" onclick="saveCard()">💾 저장</button>
-      <button class="btn btn-success btn-sm" onclick="saveAndRebuild()">🔨 저장 + 재빌드</button>
+      <button id="rebuild-btn" class="btn btn-success btn-sm" onclick="saveAndRebuild()">🔨 저장 + 재빌드</button>
     </div>`;
 }
 
@@ -1115,11 +1115,56 @@ async function saveCard() {
   }
 }
 
+function _setRebuildBtn(mode) {
+  const btn = document.getElementById('rebuild-btn');
+  if (!btn) return;
+  const IDLE    = { disabled: false, html: '🔨 저장 + 재빌드', cls: 'btn btn-success btn-sm' };
+  const LOADING = { disabled: true,  html: '<span class="btn-spinner"></span>저장 및 재빌드 중...', cls: 'btn btn-success btn-sm' };
+  const DONE    = { disabled: true,  html: '✅ 재빌드 완료', cls: 'btn btn-outline-success btn-sm' };
+  const FAIL    = { disabled: false, html: '🔨 저장 + 재빌드', cls: 'btn btn-success btn-sm' };
+  const cfg = { idle: IDLE, loading: LOADING, done: DONE, fail: FAIL }[mode] || IDLE;
+  btn.disabled = cfg.disabled;
+  btn.innerHTML = cfg.html;
+  btn.className = cfg.cls;
+}
+
 async function saveAndRebuild() {
-  await saveCard();
-  const statusEl = document.getElementById('rebuild-status');
-  if (statusEl && statusEl.classList.contains('failed')) return;
-  await rebuildSet();
+  const setId = state.editingSetId;
+  const index = state.editingCardIndex;
+  if (!setId || state.currentDeck === null) return;
+
+  _setRebuildBtn('loading');
+  showRebuildStatus('running', '💾 저장 중...');
+
+  // 1. 저장
+  const patch = getFormValues(index);
+  try {
+    const res = await api.patch(`/api/cardnews/sets/${setId}/cards/${index}`, patch);
+    state.currentDeck = res.deck;
+  } catch (err) {
+    showRebuildStatus('failed', '❌ 저장 실패: ' + err.message);
+    _setRebuildBtn('fail');
+    return;
+  }
+
+  // 2. 재빌드
+  showRebuildStatus('running', '🔨 재빌드 중...');
+  try {
+    const res = await api.post(`/api/cardnews/sets/${setId}/rebuild`, {});
+    const ts = Date.now();
+    const newUrls = (res.imageUrls || []).map(url => url + '?t=' + ts);
+    refreshDetailImages(newUrls);
+    if (res.htmlUrl) {
+      const htmlBtn = document.getElementById('detail-html-btn');
+      if (htmlBtn) htmlBtn.onclick = () => window.open(res.htmlUrl, '_blank');
+    }
+    showRebuildStatus('success', '✅ 재빌드 완료 (' + (res.imageUrls || []).length + '장)');
+    _setRebuildBtn('done');
+    setTimeout(() => _setRebuildBtn('idle'), 2000);
+  } catch (err) {
+    showRebuildStatus('failed', '❌ 재빌드 실패: ' + err.message);
+    _setRebuildBtn('fail');
+  }
 }
 
 async function rebuildSet() {
