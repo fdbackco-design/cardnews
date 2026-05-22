@@ -23,6 +23,7 @@ import {
   buildFallbackCoverTitle,
   splitCoverTitleToLines,
   validateCoverTitle,
+  validateCoverTitleLines,
 } from "./coverTitle";
 
 dotenv.config();
@@ -197,12 +198,26 @@ function resolveCoverTitle(
     return { title: fb.title, lines: fb.lines, errors };
   }
 
-  const finalLines =
+  const candidateFinal =
     candidateLines.length > 0
       ? candidateLines
       : splitCoverTitleToLines(rewrittenTitle);
 
-  return { title: rewrittenTitle, lines: finalLines, errors };
+  // 줄 수·길이 검증 (정확히 2줄, 각 줄 10자 이내)
+  const lineErrors = validateCoverTitleLines(candidateFinal);
+  if (lineErrors.length > 0) {
+    errors.push(...lineErrors);
+    // rewrittenTitle을 다시 분리해서 재시도
+    const reSplit = splitCoverTitleToLines(rewrittenTitle);
+    if (validateCoverTitleLines(reSplit).length === 0) {
+      return { title: rewrittenTitle, lines: reSplit, errors };
+    }
+    // 그래도 실패 → rule-based fallback
+    const fb = buildFallbackCoverTitle(originalTitle);
+    return { title: fb.title, lines: fb.lines, errors };
+  }
+
+  return { title: rewrittenTitle, lines: candidateFinal, errors };
 }
 
 function normalizeLlmDeckCard(
@@ -378,14 +393,15 @@ export async function generateCardNewsFromSource(params: {
           (r.highlights ?? []).some(isBrokenKorean) ||
           (r.outro ? isBrokenKorean(r.outro) : false)
       );
+      const lineLengthErrors = validateLineLengths(contentCards);
 
-      if (ok) {
+      if (ok && lineLengthErrors.length === 0) {
         console.log("[ContentGenerator] 검증 통과 — Gemini 텍스트+imagePrompt 적용");
         logImagePrompts(deck);
         return deck;
       }
 
-      if (!hasBroken) {
+      if (!hasBroken && lineLengthErrors.length === 0) {
         console.warn(
           `[ContentGenerator] 길이 경고만 있음 — Gemini 덱 적용 (시도 ${attempt})`
         );
@@ -394,7 +410,17 @@ export async function generateCardNewsFromSource(params: {
         return deck;
       }
 
-      validationHints = errors.join("\n");
+      // 마지막 시도: 실제 비문(hasBroken)이 없으면 줄 길이 초과가 남아도 적용
+      if (attempt === MAX_ATTEMPTS && !hasBroken) {
+        console.warn(
+          `[ContentGenerator] 마지막 시도 — 줄 길이 초과 있으나 비문 없음, Gemini 덱 적용`
+        );
+        logCardCopyValidation(contentCards);
+        logImagePrompts(deck);
+        return deck;
+      }
+
+      validationHints = [...errors, ...lineLengthErrors].join("\n");
       console.warn(`[ContentGenerator] 검증 실패:\n${validationHints}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -419,8 +445,10 @@ function ruleFallbackDeck(
 
   for (let i = 0; i < contentCardCount; i++) {
     const s = picked[i];
+    // 빈 제목 섹션은 덱 제목(topic)을 대신 사용해 "핵심 정보" 같은 generic 제목을 방지
+    const heading = s?.heading?.trim() || topic || deckTitle;
     const copy = s
-      ? fallbackSectionToCardCopy(s.body, s.heading ?? "")
+      ? fallbackSectionToCardCopy(s.body, heading)
       : fallbackSectionToCardCopy(source.rawText.slice(0, 400), source.title);
     const cardIndex = i + 1;
     contentCards.push({
@@ -575,6 +603,29 @@ function startsWithTopic(text: string, topic: string): boolean {
   if (re.test(t)) return true;
   if (/^\s*이\s*주제(는|은|이|가)/.test(t)) return true;
   return false;
+}
+
+const MAX_LINE_CHARS = 26;
+
+function validateLineLengths(cards: GeneratedCardCopy[]): string[] {
+  const errors: string[] = [];
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i]!;
+    const n = i + 1;
+    if (card.intro && card.intro.length > MAX_LINE_CHARS) {
+      errors.push(`[카드 ${n}] intro ${card.intro.length}자 초과(최대 ${MAX_LINE_CHARS}자): "${card.intro.slice(0, 30)}"`);
+    }
+    for (let j = 0; j < (card.highlights ?? []).length; j++) {
+      const h = card.highlights![j]!;
+      if (h.length > MAX_LINE_CHARS) {
+        errors.push(`[카드 ${n}] highlight[${j}] ${h.length}자 초과(최대 ${MAX_LINE_CHARS}자): "${h.slice(0, 30)}"`);
+      }
+    }
+    if (card.outro && card.outro.length > MAX_LINE_CHARS) {
+      errors.push(`[카드 ${n}] outro ${card.outro.length}자 초과(최대 ${MAX_LINE_CHARS}자): "${card.outro.slice(0, 30)}"`);
+    }
+  }
+  return errors;
 }
 
 function validateTopicDeckUniqueness(
@@ -773,11 +824,21 @@ export async function generateCardNewsFromTopic(params: {
 
       // 중복·범용 문구·템플릿 제목·주제 시작 검사
       const uniqueErrors = validateTopicDeckUniqueness(contentCards, topic);
+      const lineLengthErrors = validateLineLengths(contentCards);
 
-      if (!hasBroken && uniqueErrors.length === 0) {
+      if (!hasBroken && uniqueErrors.length === 0 && lineLengthErrors.length === 0) {
         console.log(
           `[ContentGenerator] 주제 기반 생성 통과 (시도 ${attempt}) — ` +
             `제목: ${contentCards.map((c) => `"${c.title}"`).join(", ")}`
+        );
+        logImagePrompts(deck);
+        return deck;
+      }
+
+      // 마지막 시도: 비문 없고 중복·범용 문구만 없으면 줄 길이 초과 허용하고 적용
+      if (attempt === MAX_ATTEMPTS && !hasBroken && uniqueErrors.length === 0) {
+        console.warn(
+          `[ContentGenerator] 주제 기반 마지막 시도 — 줄 길이 초과 있으나 비문 없음, Gemini 덱 적용`
         );
         logImagePrompts(deck);
         return deck;
@@ -789,6 +850,7 @@ export async function generateCardNewsFromTopic(params: {
         retryReasons.push(...structErrors);
       }
       retryReasons.push(...uniqueErrors);
+      retryReasons.push(...lineLengthErrors);
 
       validationHints = retryReasons.join("\n");
       console.warn(

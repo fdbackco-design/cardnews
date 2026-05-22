@@ -217,10 +217,23 @@ export async function generateImagenCardImage(params: {
   try {
     fs.mkdirSync(path.dirname(localPath), { recursive: true });
     const rawBuffer = Buffer.from(result.bytes, "base64");
-    const cropped   = await sharp(rawBuffer)
-      .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "cover", position: "top" })
+    let cropped = await sharp(rawBuffer)
+      .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "cover", position: "center" })
       .png()
       .toBuffer();
+
+    // 치수 최종 검증 — 차이가 있으면 fit:fill로 강제 보정 (Pexels fallback 없음)
+    const meta = await sharp(cropped).metadata();
+    if (meta.width !== CARD_IMAGE_WIDTH || meta.height !== CARD_IMAGE_HEIGHT) {
+      console.warn(
+        `[GeminiImage] 치수 보정: ${meta.width}×${meta.height} → ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT}`,
+      );
+      cropped = await sharp(cropped)
+        .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "fill" })
+        .png()
+        .toBuffer();
+    }
+
     fs.writeFileSync(localPath, cropped);
     console.log(
       `[GeminiImage] generated (${result.model}): ${path.basename(localPath)} ` +

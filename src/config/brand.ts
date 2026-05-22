@@ -10,7 +10,7 @@ export const brand = {
   },
   cardWidth: 1080,
   cardHeight: 1350,
-  outputScale: 2,
+  outputScale: 1,
   fonts: {
     label: "BMKkubulim",
     body: "Pretendard",

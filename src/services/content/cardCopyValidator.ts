@@ -22,8 +22,11 @@ export type CardCopyFields = {
   outro?: string;
 };
 
+// 한국어 문장 종결 판단.
+// 뒷부분의 범용 패턴 ([가-힣]니다, [가-힣]요)이 대부분 케이스를 커버하므로
+// 앞쪽 특수 목록은 유지하되 중복 삭제하지 않는다.
 const VALID_ENDINGS =
-  /(해요|하세요|합니다|입니다|돼요|세요|있어요|없어요|주세요|드세요|보세요|네요|죠|져요|아파요|나요|가요|닙니다|습니다|생겨요|심해져요|좋아요|위험해요|필요해요|중요해요|인가요|할까요|습니까|이에요|예요)\.?$|나요\?$|인가요\?$/;
+  /(해요|하세요|합니다|입니다|돼요|세요|있어요|없어요|주세요|드세요|보세요|네요|죠|져요|아파요|나요|가요|닙니다|습니다|생겨요|심해져요|좋아요|위험해요|필요해요|중요해요|인가요|할까요|습니까|이에요|예요)\.?$|나요\?$|인가요\?$|[가-힣]니다\.?$|[가-힣]요\.?$/;
 
 const BROKEN_PATTERNS: RegExp[] = [
   /…|\.\.\./,
@@ -60,7 +63,7 @@ export function isIncompleteTitle(title: string): boolean {
   if (isBrokenKorean(t)) return true;
   if (/[(\[（]/.test(t) && !/[)\]）]/.test(t)) return true;
   if (/\s*(및|으로|에서|의|에|와|과)\s*$/.test(t)) return true;
-  if (/[.!?。]$/.test(t)) return true;
+  if (/[.!。]$/.test(t)) return true;  // '?'는 질문형 제목으로 허용
   return false;
 }
 

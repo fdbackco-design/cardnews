@@ -4,7 +4,7 @@ export const CARD_IMAGE_WIDTH  = 1080;
 export const CARD_IMAGE_HEIGHT = 1350;
 
 const OUTPUT_DIMENSIONS_RULE =
-  `OUTPUT SIZE (MANDATORY): Exactly ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} pixels, portrait orientation, 4:5 aspect ratio. ` +
+  `OUTPUT SIZE (MANDATORY): Exactly ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} pixels, 1080x1350 vertical composition, portrait orientation, 4:5 aspect ratio. ` +
   "Do not crop to any other size or ratio.";
 
 const NO_TEXT_RULE =
@@ -14,6 +14,18 @@ const NO_TEXT_RULE =
 const KOREAN_PERSON_RULE =
   "IF ANY PERSON APPEARS: Must be clearly Korean ethnicity (South Korean appearance — Korean facial features, hair, and styling). " +
   "Not Japanese, not Chinese, not other East Asian or Western ethnicities. Natural, unposed, editorial lifestyle photography.";
+
+const FRAMING_RULE =
+  "FRAMING (MANDATORY): Main subject centered in the frame. Subject fully visible, not cropped. " +
+  "No cropped face, no cropped hands, no cut-off objects. " +
+  "Keep the subject away from the left, right, and bottom edges. " +
+  "Leave the bottom 35% of the frame clean and uncluttered for Korean text overlay. " +
+  "Balanced premium Korean lifestyle editorial composition.";
+
+const FRAMING_NEGATIVE_RULE =
+  "STRICTLY AVOID: cropped face, cropped hands, cut-off body, cut-off object, subject at edge, " +
+  "extreme close-up that cuts off the subject, awkward framing, cluttered bottom area, " +
+  "important details hidden by text overlay area.";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 
@@ -286,15 +298,19 @@ function buildMood(category: SceneCategory): string {
 // ── 구도 ──────────────────────────────────────────────────────────────────────
 
 function buildComposition(shotType: ShotType): string {
-  const safe = "Reserve dark or clean empty negative space on the LEFT and BOTTOM edges (no text or graphics in that space).";
+  // 하단 35% = 텍스트 안전영역, 피사체는 상단 65% 안에서 중앙 배치
+  const safeBottom = "CRITICAL: Bottom 35% of frame must be clean and empty — flat or softly blurred background, no subject or detail. Reserved for Korean text overlay.";
+  const safeEdges  = "Subject fully visible — absolutely no cropping at left, right, or bottom edges.";
+  const center     = "Main subject horizontally centered, positioned in the upper 55–65% of the frame.";
+
   const comps: Record<ShotType, string> = {
-    "wide shot":          `Subject in the lower-third or right-third of the frame. Generous empty space on the left and upper area for title text. ${safe}`,
-    "close-up":           `Main subject fills the right half of the frame. Soft background bokeh. No clutter in the left third. ${safe}`,
-    "medium shot":        `Subject right-of-center. Natural depth of field. Slight diagonal angle. Left side open. ${safe}`,
-    "top-down":           `Pure overhead bird's-eye view. Subject centered or slightly right on a clean flat surface. Symmetrical or slightly diagonal. ${safe}`,
-    "side profile":       `Pure 90-degree side view. Subject facing right, occupying right half of frame. Strong horizontal line. ${safe}`,
-    "over-the-shoulder":  `Camera positioned just behind and above the subject's shoulder. Depth leads the eye into the scene. Subject and background fill right half. ${safe}`,
-    "detail shot":        `Extreme macro or textural detail. Very shallow depth of field — main element sharp, background blurred. Subject on the right side. ${safe}`,
+    "wide shot":          `${center} Generous surrounding space on all sides. Environmental context visible. ${safeEdges} ${safeBottom}`,
+    "close-up":           `${center} Subject fills the central frame area. Soft background bokeh surrounds subject. ${safeEdges} ${safeBottom}`,
+    "medium shot":        `${center} Natural depth of field. Slight diagonal feel but subject stays centered. ${safeEdges} ${safeBottom}`,
+    "top-down":           `Pure overhead bird's-eye view. Subject centered on a clean flat surface. Symmetrical composition. ${safeEdges} ${safeBottom}`,
+    "side profile":       `Pure 90-degree side view. Subject fully in frame — head to mid-torso visible, centered horizontally. ${safeEdges} ${safeBottom}`,
+    "over-the-shoulder":  `Camera just behind and slightly above the subject. Subject fully in frame, centered, depth leads eye into scene. ${safeEdges} ${safeBottom}`,
+    "detail shot":        `Macro or textural detail centered in frame. Very shallow depth of field — main element sharp, background blurred. Subject fully visible. ${safeEdges} ${safeBottom}`,
   };
   return comps[shotType];
 }
@@ -312,6 +328,16 @@ function buildAvoid(category: SceneCategory, subjectType: SubjectType): string[]
     "no visible UI screens with any content",
     "no captions, subtitles, speech bubbles, or watermarks",
     "no signboards, street signs, or book pages with writing",
+    // ── 프레이밍 negative prompts (항상 적용) ──────────────────────────────
+    "cropped face",
+    "cropped hands",
+    "cut-off body at any edge",
+    "cut-off objects",
+    "subject touching or beyond the left, right, or bottom edges",
+    "extreme close-up that clips the subject",
+    "awkward framing",
+    "cluttered bottom third",
+    "important subject details hidden in the lower area of the frame",
   ];
   if (subjectType === "person" || subjectType === "mixed") {
     base.push(
@@ -408,8 +434,9 @@ export function buildCardImagePrompt(params: {
   const avoidList = scene.avoid.join("; ");
 
   const prompt = [
-    // ── 0순위: 출력·금지 (모델이 반드시 준수) ───────────────────────────────
+    // ── 0순위: 출력·프레이밍·금지 (모델이 반드시 준수) ─────────────────────
     `[MANDATORY OUTPUT] ${OUTPUT_DIMENSIONS_RULE}`,
+    `[MANDATORY FRAMING] ${FRAMING_RULE}`,
     `[MANDATORY — NO TEXT] ${NO_TEXT_RULE}`,
     "",
     // ── 1순위: 핵심 피사체 ───────────────────────────────────────────────────
@@ -432,6 +459,7 @@ export function buildCardImagePrompt(params: {
     "[CRITICAL — STRICTLY ENFORCED]",
     "Real-life photography ONLY. Absolutely no vector icons, no clip-art, no 3D-rendered objects, no anatomical or medical diagrams, no infographics, no cartoon-style or illustrative imagery.",
     `${NO_TEXT_RULE} Additional avoid: ${avoidList}.`,
+    FRAMING_NEGATIVE_RULE,
     "Any screen, device display, or monitor MUST be completely blank and turned off — zero digits or characters visible.",
     "Any product, food package, or bottle MUST have unreadable or absent labels.",
     "",
@@ -482,11 +510,13 @@ export function buildImagenPromptFromLlmQuery(llmImagePrompt: string): string {
 
   return [
     `[MANDATORY OUTPUT] ${OUTPUT_DIMENSIONS_RULE}`,
+    `[MANDATORY FRAMING] ${FRAMING_RULE}`,
     `[MANDATORY — NO TEXT] ${NO_TEXT_RULE}`,
     scene,
     "PHOTOGRAPHY STYLE: Real-life editorial photography. Warm natural light, soft contrast, Korean healthcare lifestyle magazine quality.",
     "THIS IS A PHOTOGRAPH — NOT an illustration, NOT a 3D render, NOT clip-art, NOT a vector graphic.",
     KOREAN_PERSON_RULE,
+    FRAMING_NEGATIVE_RULE,
     `FINAL OUTPUT: ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} px portrait (4:5). Image must contain zero text.`,
   ].join("\n\n");
 }
