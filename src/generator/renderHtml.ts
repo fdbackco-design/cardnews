@@ -105,12 +105,19 @@ ${subtitleHtml}  </div>
 </section>`;
 }
 
+// ── 본문 마침표 제거 ──────────────────────────────────────────────────────────
+// 숫자(소수점) · URL · 약어 안의 점은 건드리지 않고, 문장 끝의 마침표만 제거
+
+function trimPeriod(text: string): string {
+  return text.replace(/[.。]$/, "");
+}
+
 // ── 하이라이트 목록 ───────────────────────────────────────────────────────────
 
 function renderHighlights(items: string[]): string {
   const listItems = items
     .slice(0, 2)
-    .map((item) => `    <li class="card__highlight"><span>${esc(item)}</span></li>`)
+    .map((item) => `    <li class="card__highlight"><span>${esc(trimPeriod(item))}</span></li>`)
     .join("\n");
   return `  <ul class="card__highlights">\n${listItems}\n  </ul>\n`;
 }
@@ -119,7 +126,7 @@ function renderHighlights(items: string[]): string {
 
 function renderBullets(items: string[]): string {
   const listItems = items
-    .map((item) => `    <li class="card__bullet">${esc(item)}</li>`)
+    .map((item) => `    <li class="card__bullet">${esc(trimPeriod(item))}</li>`)
     .join("\n");
   return `  <ul class="card__bullets">\n${listItems}\n  </ul>\n`;
 }
@@ -127,14 +134,12 @@ function renderBullets(items: string[]): string {
 // ── 내용 카드 ─────────────────────────────────────────────────────────────────
 
 function renderContentCard(card: ContentCard): string {
-  const indexHtml = `  <p class="card__index">${card.index < 10 ? "0" : ""}${card.index}</p>\n`;
-
   const subtitleHtml = card.subtitle
     ? `  <p class="card__subtitle">${esc(card.subtitle)}</p>\n`
     : "";
 
   const introHtml = card.intro
-    ? `  <p class="card__intro">${esc(card.intro)}</p>\n`
+    ? `  <p class="card__intro">${esc(trimPeriod(card.intro))}</p>\n`
     : "";
 
   const highlightsHtml =
@@ -148,7 +153,7 @@ function renderContentCard(card: ContentCard): string {
       : "";
 
   const outroHtml = card.outro
-    ? `  <p class="card__outro">${esc(card.outro)}</p>\n`
+    ? `  <p class="card__outro">${esc(trimPeriod(card.outro))}</p>\n`
     : "";
 
   return `<section class="card card--content" data-card-index="${card.index}">
@@ -156,7 +161,7 @@ ${bgImg(card.imageUrl)}  <div class="card__overlay"></div>
   <span class="card__label-corner">라이프 가이드</span>
   <div class="card__content">
     <div class="card__top">
-${indexHtml}      <h2 class="card__title">${esc(card.title)}</h2>
+      <h2 class="card__title">${esc(card.title)}</h2>
 ${subtitleHtml}    </div>
     <div class="card__body">
 ${introHtml}${highlightsHtml}${bulletsHtml}${outroHtml}    </div>

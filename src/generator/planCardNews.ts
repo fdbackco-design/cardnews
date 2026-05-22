@@ -39,6 +39,12 @@ function makeId(topic: string): string {
   return slugify(topic).slice(0, 30) || "card";
 }
 
+/** 공백·구두점 제거 후 글자 수 홀/짝으로 cover-top / cover-bottom을 안정적으로 선택 */
+function pickCoverVariant(topic: string): "top" | "bottom" {
+  const clean = topic.replace(/[\s,，、.。!！?？:：]/g, "");
+  return clean.length % 2 === 0 ? "top" : "bottom";
+}
+
 function splitCoverTitle(title: string): string[] {
   // 쉼표/마침표 기준 자연 분리
   const byComma = title.split(/[,，、]/).map((s) => s.trim()).filter(Boolean);
@@ -62,7 +68,7 @@ function makeCover(
 ): CoverCard {
   return {
     type: "cover",
-    variant: "bottom",
+    variant: pickCoverVariant(title),
     label: "라이프 가이드",
     titleLines: splitCoverTitle(title),
     subtitle,
@@ -82,7 +88,7 @@ function makeCoverFromRewritten(params: {
     params;
   return {
     type: "cover",
-    variant: "bottom",
+    variant: pickCoverVariant(rewrittenTitle),
     label: "라이프 가이드",
     titleLines: titleLines.length > 0 ? titleLines : splitCoverTitle(rewrittenTitle),
     rewrittenCoverTitle: rewrittenTitle,
@@ -187,7 +193,7 @@ function buildBloodPressureNarrative(options: PlanCardNewsOptions): CardNewsSet 
     sourceUrl,
     cover: {
       type: "cover",
-      variant: "bottom",
+      variant: pickCoverVariant("혈압 수치, 제대로 읽고 있을까?"),
       label: "라이프 가이드",
       titleLines: ["혈압 수치,", "제대로", "읽고 있을까?"],
       subtitle: "내 혈압 숫자가 말하는 것",

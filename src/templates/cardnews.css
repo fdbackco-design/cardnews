@@ -108,25 +108,40 @@ body {
    표지 카드 (Cover)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* 코랄이 상단에 집중, 하단은 사진이 보이게 */
-.card--cover .card__overlay {
+/* cover-top: 그라데이션 상단 집중, 텍스트 상단 배치 */
+.card--cover.card--top .card__overlay {
   background: linear-gradient(
     180deg,
-    rgba(255, 95, 38, 0.94)  0%,
-    rgba(255, 100, 42, 0.78) 22%,
-    rgba(255, 107, 61, 0.44) 46%,
-    rgba(255, 107, 61, 0.10) 68%,
-    rgba(0,   0,   0,  0.00) 100%
+    rgba(234, 86, 53, 0.95) 0%,
+    rgba(234, 86, 53, 0.70) 28%,
+    rgba(234, 86, 53, 0.35) 55%,
+    rgba(234, 86, 53, 0.00) 100%
   );
 }
 
-/* bottom/top 모두 레퍼런스처럼 상단 정렬 */
-.card--cover .card__content,
-.card--cover.card--bottom .card__content,
+/* cover-bottom: 그라데이션 하단 집중, 텍스트 하단 배치 */
+.card--cover.card--bottom .card__overlay {
+  background: linear-gradient(
+    0deg,
+    rgba(234, 86, 53, 0.95) 0%,
+    rgba(234, 86, 53, 0.70) 28%,
+    rgba(234, 86, 53, 0.35) 55%,
+    rgba(234, 86, 53, 0.00) 100%
+  );
+}
+
+/* cover-top: 텍스트 상단 배치 */
 .card--cover.card--top .card__content {
   justify-content: flex-start;
-  padding-top: 72px;
+  padding-top: 120px;
   padding-bottom: 96px;
+}
+
+/* cover-bottom: 텍스트 하단 배치 (로고 위 안전 여백 확보) */
+.card--cover.card--bottom .card__content {
+  justify-content: flex-end;
+  padding-top: 96px;
+  padding-bottom: 220px;
 }
 
 /* 라벨 — "라이프 가이드" BMKkubulim */
@@ -139,13 +154,14 @@ body {
   margin-bottom: 14px;
 }
 
-/* 라벨 하단 구분선 */
+/* 라벨 하단 구분선 — "라이프 가이드" 영역을 정리하는 긴 가이드 라인 */
 .card__label-rule {
-  width: 48px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.80);
-  margin-bottom: 28px;
-  border-radius: 1px;
+  width: 88%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  margin-top: 4px;
+  margin-bottom: 36px;
+  border-radius: 2px;
 }
 
 /* 표지 제목 */
