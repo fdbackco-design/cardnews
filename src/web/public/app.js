@@ -5,6 +5,10 @@ const state = {
   pollTimer: null,
   currentResult: null,
   igSelectedImages: new Set(),
+  igAllImages: [],
+  igCurrentSetId: null,
+  igCurrentTitle: '',
+  igConfig: null,
   // 모달 상태 — onclick 속성에 JSON 직렬화하지 않고 여기에 저장
   modalImages: [],
   modalIndex: 0,
@@ -65,7 +69,10 @@ function navigateTo(page) {
   if (navEl) navEl.classList.add('active');
 
   if (page === 'history') loadHistory();
-  if (page === 'instagram') loadInstagramSets();
+  if (page === 'instagram') {
+    loadInstagramConfig();
+    loadInstagramSets();
+  }
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -340,7 +347,7 @@ function goInstagramDraft() {
     const sel = document.getElementById('ig-set-select');
     const setId = state.currentResult.setId;
     for (let opt of sel.options) {
-      if (opt.value === setId) { sel.value = setId; loadInstagramDraft(); break; }
+      if (opt.value === setId) { sel.value = setId; await loadInstagramDraft(); break; }
     }
   }, 300);
 }
@@ -473,7 +480,7 @@ function loadInstagramForSet(setId) {
     await loadInstagramSets();
     const sel = document.getElementById('ig-set-select');
     sel.value = setId;
-    if (sel.value === setId) loadInstagramDraft();
+    if (sel.value === setId) await loadInstagramDraft();
   }, 200);
 }
 
@@ -618,44 +625,149 @@ function downloadDetailZip() {
 }
 
 /* ── Instagram Page ────────────────────────────────────────────────────────── */
+
+/** Instagram 게시 가능 여부를 백엔드에 조회해 UI를 게이팅 */
+async function loadInstagramConfig() {
+  const banner = document.getElementById('ig-config-banner');
+  const title = document.getElementById('ig-config-title');
+  const message = document.getElementById('ig-config-message');
+  const uploadBtn = document.getElementById('ig-upload-btn');
+  const blocked = document.getElementById('ig-upload-blocked');
+  const blockedMsg = document.getElementById('ig-upload-blocked-message');
+  const hint = document.getElementById('ig-upload-hint');
+
+  try {
+    const cfg = await api.get('/api/instagram/config');
+    state.igConfig = cfg;
+
+    if (cfg.canPublish) {
+      banner.className = 'ig-config-banner ig-config-banner--ok';
+      banner.querySelector('.ig-config-icon').textContent = '✅';
+      title.textContent = `Instagram 게시 준비 완료 (Graph API ${cfg.apiVersion})`;
+      message.textContent =
+        `공개 저장소: ${cfg.publicAsset.provider} · 토큰/계정 설정 확인 완료`;
+      uploadBtn.disabled = (state.igSelectedImages?.size ?? 0) === 0;
+      blocked.classList.add('hidden');
+      hint.textContent = 'Carousel(2~10장) 자동 업로드';
+    } else {
+      banner.className = 'ig-config-banner ig-config-banner--blocked';
+      banner.querySelector('.ig-config-icon').textContent = '⚠️';
+      title.textContent = '공개 이미지 저장소 설정이 필요합니다';
+      message.textContent = cfg.hint || '환경변수를 설정한 뒤 서버를 재시작하세요.';
+      uploadBtn.disabled = true;
+      blocked.classList.remove('hidden');
+      blockedMsg.innerHTML =
+        '<div>다음 항목을 <code>.env</code>에 설정한 뒤 서버를 재시작하세요:</div>' +
+        '<ul style="margin:6px 0 0 18px">' +
+        (cfg.missing || []).map(m => `<li><code>${escapeHtml(m)}</code></li>`).join('') +
+        '</ul>';
+      hint.textContent = '설정 미완료 — 게시 비활성화';
+    }
+  } catch (err) {
+    banner.className = 'ig-config-banner ig-config-banner--blocked';
+    banner.querySelector('.ig-config-icon').textContent = '⚠️';
+    title.textContent = '설정 확인 실패';
+    message.textContent = err.message || String(err);
+    uploadBtn.disabled = true;
+  }
+}
+
+/** 사이드바에서 메뉴 진입 시 세트 목록 로드 */
 async function loadInstagramSets() {
   try {
     const history = await api.get('/api/cardnews/history');
     const sel = document.getElementById('ig-set-select');
     const current = sel.value;
     sel.innerHTML = '<option value="">-- 세트를 선택하세요 --</option>' +
-      history.map(e =>
-        `<option value="${escapeHtml(e.setId)}">${escapeHtml(e.title || e.setId)}</option>`
-      ).join('');
+      history.map(e => {
+        const dateStr = e.createdAt
+          ? new Date(e.createdAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
+          : '';
+        const label = `${dateStr ? '[' + dateStr + '] ' : ''}${e.title || e.setId} (${e.cardCount}장)`;
+        return `<option value="${escapeHtml(e.setId)}">${escapeHtml(label)}</option>`;
+      }).join('');
     if (current) sel.value = current;
   } catch (err) {
     console.error('Failed to load sets:', err);
   }
 }
 
+/** 드롭다운 선택 변경 시 — 자동 캡션 생성하지는 않고, 사용자가 명시적으로 버튼 누르도록 */
+function onIgSetChange() {
+  const setId = document.getElementById('ig-set-select').value;
+  if (!setId) {
+    document.getElementById('ig-draft-section').classList.add('hidden');
+  }
+}
+
+/** "선택 · 캡션 자동 생성" 버튼 — 캡션 + 이미지 그리드 로드, card-01부터 전체 선택 */
 async function loadInstagramDraft() {
   const setId = document.getElementById('ig-set-select').value;
-  if (!setId) { alert('세트를 선택하세요.'); return; }
+  if (!setId) { alert('세트를 먼저 선택하세요.'); return; }
+
+  const btn = document.getElementById('ig-load-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 캡션 생성 중...';
 
   try {
     const draft = await api.post('/api/instagram/draft', { setId });
-    document.getElementById('ig-caption').value = draft.caption;
 
-    state.igSelectedImages = new Set(draft.imagePaths);
-    const grid = document.getElementById('ig-image-grid');
-    grid.innerHTML = draft.imagePaths.map((p, i) => {
-      const url = p.startsWith('/') ? p : '/' + p;
-      return `
-        <div class="image-card selected" data-path="${escapeHtml(p)}" onclick="toggleIgImage(this, '${escapeHtml(p)}')">
-          <img src="${escapeHtml(url)}" alt="카드 ${i + 1}" loading="lazy" />
-          <div class="image-label">카드 ${i + 1}</div>
-        </div>`;
-    }).join('');
+    // 상태 저장 (card-01부터 순서대로 모두 선택)
+    state.igCurrentSetId = draft.setId;
+    state.igCurrentTitle = draft.title || draft.setId;
+    state.igAllImages = draft.imagePaths || [];
+    state.igSelectedImages = new Set(state.igAllImages);
+
+    // 제목/setId 표시
+    document.getElementById('ig-set-title').textContent = state.igCurrentTitle;
+    document.getElementById('ig-set-id').textContent = state.igCurrentSetId;
+
+    // 캡션 채우기
+    document.getElementById('ig-caption').value = draft.caption || '';
+
+    // 이미지 그리드 렌더링
+    renderIgImageGrid();
+
+    // 업로드 로그 초기화
+    const logEl = document.getElementById('ig-upload-log');
+    logEl.classList.add('hidden');
+    logEl.innerHTML = '';
 
     document.getElementById('ig-draft-section').classList.remove('hidden');
+    document.getElementById('ig-draft-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (err) {
     alert('캡션 생성 실패: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ 선택 · 캡션 자동 생성';
   }
+}
+
+function renderIgImageGrid() {
+  const grid = document.getElementById('ig-image-grid');
+  if (!state.igAllImages.length) {
+    grid.innerHTML = '<div class="text-muted">이미지를 찾을 수 없습니다.</div>';
+    updateIgCount();
+    return;
+  }
+
+  grid.innerHTML = state.igAllImages.map((p, i) => {
+    const url = p.startsWith('/') ? p : '/' + p;
+    const selected = state.igSelectedImages.has(p);
+    const label = i === 0 ? '표지' : `카드 ${i}`;
+    return `
+      <div class="image-card ig-image-card ${selected ? 'selected' : ''}"
+           data-path="${escapeHtml(p)}"
+           onclick="toggleIgImage(this, '${escapeHtml(p)}')">
+        <div class="ig-check">
+          <span class="ig-check-box">✓</span>
+        </div>
+        <div class="ig-order">${i + 1}</div>
+        <img src="${escapeHtml(url)}" alt="${label}" loading="lazy" />
+        <div class="image-label">${label}</div>
+      </div>`;
+  }).join('');
+  updateIgCount();
 }
 
 function toggleIgImage(el, path) {
@@ -666,29 +778,178 @@ function toggleIgImage(el, path) {
     state.igSelectedImages.add(path);
     el.classList.add('selected');
   }
+  updateIgCount();
+}
+
+function updateIgCount() {
+  const total = state.igAllImages.length;
+  const selected = state.igSelectedImages.size;
+  const badge = document.getElementById('ig-image-count-badge');
+  if (badge) badge.textContent = `${selected}/${total}장 선택`;
+  const uploadBtn = document.getElementById('ig-upload-btn');
+  if (uploadBtn) {
+    // config가 canPublish=false면 무조건 비활성, 그 외에는 선택장수가 1 이상일 때 활성
+    const canPublish = state.igConfig?.canPublish === true;
+    uploadBtn.disabled = !canPublish || selected === 0;
+  }
+}
+
+function igSelectAll() {
+  state.igSelectedImages = new Set(state.igAllImages);
+  document.querySelectorAll('.ig-image-card').forEach(el => el.classList.add('selected'));
+  updateIgCount();
+}
+
+function igDeselectAll() {
+  state.igSelectedImages = new Set();
+  document.querySelectorAll('.ig-image-card').forEach(el => el.classList.remove('selected'));
+  updateIgCount();
+}
+
+/** card-01.png부터 순서대로 전체 선택을 다시 적용 */
+function igSelectInOrder() {
+  igSelectAll();
+}
+
+/** 캡션 다시 생성 — 사용자가 textarea를 직접 수정한 경우 되돌리기용 */
+async function regenerateCaption() {
+  const setId = state.igCurrentSetId || document.getElementById('ig-set-select').value;
+  if (!setId) { alert('세트를 먼저 선택하세요.'); return; }
+
+  const captionEl = document.getElementById('ig-caption');
+  const previous = captionEl.value;
+  if (previous && previous.trim()) {
+    const ok = confirm('현재 캡션 내용이 사라집니다. 다시 생성할까요?');
+    if (!ok) return;
+  }
+
+  try {
+    const draft = await api.post('/api/instagram/draft', { setId });
+    captionEl.value = draft.caption || '';
+  } catch (err) {
+    alert('캡션 다시 생성 실패: ' + err.message);
+  }
 }
 
 async function uploadInstagram() {
-  const setId = document.getElementById('ig-set-select').value;
+  const setId = state.igCurrentSetId || document.getElementById('ig-set-select').value;
   const caption = document.getElementById('ig-caption').value;
-  const imagePaths = [...state.igSelectedImages];
+  // 원래 순서 유지 — Set 순회 순서가 아니라 igAllImages 순서로 필터
+  const imagePaths = state.igAllImages.filter(p => state.igSelectedImages.has(p));
 
-  if (!setId || !caption || !imagePaths.length) {
-    alert('세트, 캡션, 이미지를 모두 선택하세요.');
+  if (!setId) { alert('세트를 선택하세요.'); return; }
+  if (!caption.trim()) { alert('캡션을 입력하세요.'); return; }
+  if (!imagePaths.length) { alert('이미지를 1장 이상 선택하세요.'); return; }
+  if (imagePaths.length < 2 || imagePaths.length > 10) {
+    alert(`Carousel은 2~10장만 허용됩니다 (현재 ${imagePaths.length}장).`);
     return;
   }
 
   const logEl = document.getElementById('ig-upload-log');
-  logEl.classList.remove('hidden');
-  logEl.innerHTML = '<div class="log-line info">[업로드] 요청 중...</div>';
+  const resultEl = document.getElementById('ig-upload-result');
+  const uploadBtn = document.getElementById('ig-upload-btn');
+  const spinner = document.getElementById('ig-upload-btn-spinner');
+  const btnLabel = document.getElementById('ig-upload-btn-label');
 
+  // 로딩 상태
+  resultEl.classList.add('hidden');
+  resultEl.innerHTML = '';
+  logEl.classList.remove('hidden');
+  logEl.innerHTML = '<div class="log-line info">[업로드] Instagram Graph API 호출 중...</div>';
+  uploadBtn.disabled = true;
+  spinner.classList.remove('hidden');
+  btnLabel.textContent = '게시 중...';
+
+  let res = null;
+  let httpError = null;
   try {
-    const res = await api.post('/api/instagram/upload', { setId, caption, imagePaths });
-    logEl.innerHTML += `<div class="log-line info">[업로드] ${escapeHtml(res.message)}</div>`;
-    logEl.innerHTML += `<div class="log-line">[업로드] 이미지 ${res.imageCount}장 준비 완료</div>`;
+    res = await api.post('/api/instagram/upload', { setId, caption, imagePaths });
   } catch (err) {
-    logEl.innerHTML += `<div class="log-line error">[업로드 실패] ${escapeHtml(err.message)}</div>`;
+    httpError = err;
+  } finally {
+    spinner.classList.add('hidden');
+    btnLabel.textContent = '📤 Instagram에 게시';
+    // 게이팅 — 다시 활성화
+    updateIgCount();
   }
+
+  // 결과 렌더링
+  if (res && res.status === 'published') {
+    renderIgUploadResult({ kind: 'success', payload: res });
+    appendIgLogLines(logEl, [
+      `[업로드 성공] status=${res.status}`,
+      `[업로드 성공] media_id=${res.mediaId}`,
+      `[업로드 성공] container_id=${res.containerId}`,
+      `[업로드 성공] 이미지 ${res.imageCount}장`,
+    ]);
+    return;
+  }
+
+  // 실패 경로
+  const failPayload = res || (httpError && extractErrorPayload(httpError)) || {
+    status: 'failed',
+    error: httpError?.message || '알 수 없는 오류',
+  };
+  renderIgUploadResult({ kind: 'failed', payload: failPayload });
+  appendIgLogLines(logEl, [
+    `[업로드 실패] status=${failPayload.status ?? 'failed'}`,
+    failPayload.failedStep ? `[업로드 실패] step=${failPayload.failedStep}` : null,
+    `[업로드 실패] error=${failPayload.error ?? '메시지 없음'}`,
+  ].filter(Boolean));
+}
+
+/** api.post가 throw한 Error에서 백엔드의 JSON payload를 복원 */
+function extractErrorPayload(err) {
+  // api.post는 res.json().error만 throw 메시지로 사용하므로 message만 활용
+  return { status: 'failed', error: err.message };
+}
+
+function appendIgLogLines(logEl, lines) {
+  const html = lines.map(l => {
+    const cls = l.includes('실패') ? 'error' : l.includes('성공') ? 'info' : '';
+    return `<div class="log-line ${cls}">${escapeHtml(l)}</div>`;
+  }).join('');
+  logEl.innerHTML = html;
+}
+
+function renderIgUploadResult({ kind, payload }) {
+  const el = document.getElementById('ig-upload-result');
+  el.classList.remove('hidden');
+
+  if (kind === 'success') {
+    const stepsHtml = (payload.steps || []).map(s => {
+      const ok = s.ok ? '✓' : '✕';
+      return `<div class="row"><div class="label">${escapeHtml(s.step)}</div><div class="value">${ok} ${escapeHtml(s.message || '')}</div></div>`;
+    }).join('');
+    el.innerHTML = `
+      <div class="ig-upload-result-card success">
+        <div class="alert-success" style="margin-bottom:10px">
+          <strong>✅ Instagram 게시 성공</strong>
+        </div>
+        <div class="row"><div class="label">status</div><div class="value">${escapeHtml(payload.status)}</div></div>
+        <div class="row"><div class="label">media_id</div><div class="value">${escapeHtml(payload.mediaId || '')}</div></div>
+        <div class="row"><div class="label">container_id</div><div class="value">${escapeHtml(payload.containerId || '')}</div></div>
+        <div class="row"><div class="label">이미지 수</div><div class="value">${payload.imageCount}장</div></div>
+        ${stepsHtml ? `<details style="margin-top:8px"><summary>단계별 상세</summary>${stepsHtml}</details>` : ''}
+      </div>`;
+    return;
+  }
+
+  // failed
+  const stepsHtml = (payload.steps || []).map(s => {
+    const ok = s.ok ? '✓' : '✕';
+    return `<div class="row"><div class="label">${escapeHtml(s.step)}</div><div class="value">${ok} ${escapeHtml(s.message || '')}</div></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="ig-upload-result-card failed">
+      <div class="alert-error" style="margin-bottom:10px">
+        <strong>❌ Instagram 게시 실패</strong>
+        <div class="text-sm mt-1">${escapeHtml(payload.error || '알 수 없는 오류')}</div>
+      </div>
+      ${payload.failedStep ? `<div class="row"><div class="label">실패 단계</div><div class="value">${escapeHtml(payload.failedStep)}</div></div>` : ''}
+      ${payload.setId ? `<div class="row"><div class="label">setId</div><div class="value">${escapeHtml(payload.setId)}</div></div>` : ''}
+      ${stepsHtml ? `<details style="margin-top:8px" open><summary>단계별 상세</summary>${stepsHtml}</details>` : ''}
+    </div>`;
 }
 
 /* ── Util ──────────────────────────────────────────────────────────────────── */

@@ -7,7 +7,8 @@
     "generate": "tsx src/index.ts",
     "capture": "tsx src/generator/captureCards.ts",
     "all": "npm run generate -- --capture",
-    "build": "tsc",
+    "build": "tsc && cp -r src/web/public dist/web/public",
+    "start": "node dist/web/server.js",
     "dev": "tsx watch src/index.ts",
     "kdca:list": "tsx src/services/kdcaListScraper.ts",
     "daily": "tsx src/jobs/dailyCardNews.ts",
@@ -15,12 +16,14 @@
     "web": "tsx watch src/web/server.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1052.0",
     "@types/sharp": "^0.31.1",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "playwright": "^1.44.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

@@ -1,0 +1,26 @@
+services:
+  cardnews-web:
+    build: .
+    container_name: cardnews-web
+    restart: unless-stopped
+
+    ports:
+      - "3100:3000"   # 외부 3100 → 컨테이너 내부 3000
+
+    environment:
+      - NODE_ENV=production
+      - WEB_PORT=3000
+      - OUTPUT_DIR=/app/output
+      - TZ=Asia/Seoul
+
+    volumes:
+      - ./output:/app/output          # 생성된 HTML/PNG 영구 저장
+      - ./data:/app/data              # KDCA 처리 이력 영구 저장
+      - ./logs:/app/logs              # 로그 영구 저장
+      - ./.env:/app/.env:ro           # 환경변수 (읽기 전용)
+      - ./public/fonts:/app/public/fonts:ro   # 커스텀 폰트 (읽기 전용)
+
+    # DS224+ RAM 8GB 환경 기준 — 기본 2GB
+    # Playwright 캡처가 불안정하면 4g로 올릴 것
+    mem_limit: 2g
+    memswap_limit: 2g

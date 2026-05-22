@@ -216,6 +216,92 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .image-card-wrap .image-actions { display: flex; gap: 4px; }
 .image-card-wrap .image-actions .btn { flex: 1; justify-content: center; font-size: 11.5px; padding: 5px 8px; }
 
+/* ── Instagram Image Picker ─────────────────────────────────────────────────── */
+.ig-image-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.ig-image-card { position: relative; user-select: none; }
+.ig-image-card .ig-check {
+  position: absolute; top: 8px; right: 8px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.85);
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+  transition: all .12s;
+}
+.ig-image-card .ig-check-box {
+  font-size: 14px; font-weight: 700; color: transparent;
+  line-height: 1;
+}
+.ig-image-card.selected .ig-check {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.ig-image-card.selected .ig-check-box {
+  color: #fff;
+}
+.ig-image-card .ig-order {
+  position: absolute; top: 8px; left: 8px;
+  min-width: 24px; height: 24px; padding: 0 8px;
+  background: rgba(0,0,0,0.6); color: #fff;
+  border-radius: 12px;
+  font-size: 11.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+}
+.ig-image-card:not(.selected) img {
+  opacity: 0.55; filter: grayscale(0.25);
+}
+
+/* ── Instagram 설정 배너 ───────────────────────────────────────────────────── */
+.ig-config-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: 10px; margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+.ig-config-banner .ig-config-icon { font-size: 20px; }
+.ig-config-banner .ig-config-text { flex: 1; }
+.ig-config-banner .ig-config-text strong { display: block; margin-bottom: 2px; }
+.ig-config-banner--checking { background: #f5f7fa; color: #5d6b80; }
+.ig-config-banner--ok       { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.ig-config-banner--blocked  { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+
+/* ── 로딩 스피너 (버튼용) ──────────────────────────────────────────────────── */
+.ig-spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; vertical-align: -2px; margin-right: 6px;
+  animation: spin .8s linear infinite;
+}
+
+/* ── 게시 차단 알림 ──────────────────────────────────────────────────────────── */
+.alert-warn {
+  padding: 12px 14px; border-radius: 8px;
+  background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+}
+.alert-error {
+  padding: 12px 14px; border-radius: 8px;
+  background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+}
+.alert-success {
+  padding: 12px 14px; border-radius: 8px;
+  background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;
+}
+
+/* ── 게시 결과 박스 ──────────────────────────────────────────────────────────── */
+.ig-upload-result-card {
+  padding: 14px 16px; border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.ig-upload-result-card.success { border-color: #a7f3d0; background: #ecfdf5; }
+.ig-upload-result-card.failed  { border-color: #fca5a5; background: #fef2f2; }
+.ig-upload-result-card .row {
+  display: flex; gap: 12px; margin-bottom: 6px; font-size: 13px;
+}
+.ig-upload-result-card .row .label { min-width: 88px; color: var(--text-muted); font-weight: 600; }
+.ig-upload-result-card .row .value { font-family: ui-monospace, monospace; word-break: break-all; }
+
 /* ── Modal Overlay ───────────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 2000;

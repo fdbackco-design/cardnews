@@ -242,41 +242,127 @@
     <!-- ── 인스타그램 업로드 ──────────────────────────────────────────────── -->
     <div id="page-instagram" class="page-content hidden">
       <div class="page-header">
-        <h1>📱 인스타그램 업로드</h1>
+        <div>
+          <h1>📱 인스타그램 업로드 준비</h1>
+          <div class="breadcrumb">세트 선택 · 캡션 작성 · 이미지 선택 · 업로드</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadInstagramSets()">🔄 목록 새로고침</button>
       </div>
       <div class="page-body">
+
+        <!-- 0. 게시 설정 상태 -->
+        <div id="ig-config-banner" class="ig-config-banner ig-config-banner--checking">
+          <span class="ig-config-icon">⏳</span>
+          <div class="ig-config-text">
+            <strong id="ig-config-title">설정 확인 중...</strong>
+            <div id="ig-config-message" class="text-sm text-muted">Instagram 연동 설정을 확인하고 있습니다.</div>
+          </div>
+        </div>
+
+        <!-- 1. 세트 선택 -->
         <div class="card mb-4">
-          <div class="card-header"><span>🗂</span><h2>세트 선택</h2></div>
+          <div class="card-header"><span>🗂</span><h2>1. 카드뉴스 세트 선택</h2></div>
           <div class="card-body">
             <div class="form-group">
               <label class="form-label">카드뉴스 세트</label>
-              <select id="ig-set-select" class="form-control">
+              <select id="ig-set-select" class="form-control" onchange="onIgSetChange()">
                 <option value="">-- 세트를 선택하세요 --</option>
               </select>
+              <div class="form-hint">생성 이력에서 가장 최근에 만든 카드뉴스가 위쪽에 표시됩니다.</div>
             </div>
-            <button class="btn btn-primary" onclick="loadInstagramDraft()">캡션 생성</button>
+            <div class="flex gap-2 mt-4">
+              <button class="btn btn-primary" id="ig-load-btn" onclick="loadInstagramDraft()">
+                ▶ 선택 · 캡션 자동 생성
+              </button>
+            </div>
           </div>
         </div>
 
         <div id="ig-draft-section" class="hidden">
+
+          <!-- 2. 선택한 세트 정보 -->
           <div class="card mb-4">
-            <div class="card-header"><span>✍️</span><h2>캡션 편집</h2></div>
+            <div class="card-header">
+              <span>📰</span>
+              <h2>2. 선택한 카드뉴스</h2>
+              <div class="flex-1"></div>
+              <span class="badge badge-blue" id="ig-image-count-badge">0/0장</span>
+            </div>
             <div class="card-body">
-              <textarea id="ig-caption" class="form-control" rows="10"></textarea>
+              <div class="result-title" id="ig-set-title">제목</div>
+              <div class="result-meta">
+                <span class="badge badge-gray font-mono" id="ig-set-id"></span>
+              </div>
             </div>
           </div>
+
+          <!-- 3. 이미지 선택 -->
           <div class="card mb-4">
-            <div class="card-header"><span>🖼</span><h2>이미지 선택</h2></div>
+            <div class="card-header">
+              <span>🖼</span>
+              <h2>3. 업로드할 이미지 선택</h2>
+              <div class="flex-1"></div>
+              <div class="flex gap-2">
+                <button class="btn btn-secondary btn-sm" onclick="igSelectAll()">전체 선택</button>
+                <button class="btn btn-secondary btn-sm" onclick="igDeselectAll()">전체 해제</button>
+                <button class="btn btn-secondary btn-sm" onclick="igSelectInOrder()">순서대로 다시 선택</button>
+              </div>
+            </div>
             <div class="card-body">
-              <div class="image-grid" id="ig-image-grid"></div>
+              <div class="form-hint mb-3">
+                카드뉴스는 카드 1번(표지)부터 순서대로 업로드됩니다. 빼고 싶은 이미지는 클릭으로 해제하세요.
+              </div>
+              <div class="image-grid ig-image-grid" id="ig-image-grid"></div>
             </div>
           </div>
-          <div class="card">
+
+          <!-- 4. 캡션 편집 -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <span>✍️</span>
+              <h2>4. 캡션 편집</h2>
+              <div class="flex-1"></div>
+              <button class="btn btn-secondary btn-sm" onclick="regenerateCaption()">
+                🔄 캡션 다시 생성
+              </button>
+            </div>
             <div class="card-body">
-              <button class="btn btn-success" onclick="uploadInstagram()">📤 업로드 실행</button>
+              <textarea
+                id="ig-caption"
+                class="form-control"
+                rows="12"
+                placeholder="캡션을 자동 생성하면 여기에 표시됩니다."
+              ></textarea>
+              <div class="form-hint mt-2">
+                해시태그·이모지를 자유롭게 조정해도 됩니다. 변경 사항은 업로드 시 그대로 전송됩니다.
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. 게시 -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <span>📤</span>
+              <h2>5. Instagram 게시</h2>
+              <div class="flex-1"></div>
+              <span class="text-sm text-muted" id="ig-upload-hint">
+                Carousel(2~10장) 자동 업로드
+              </span>
+            </div>
+            <div class="card-body">
+              <button class="btn btn-success" id="ig-upload-btn" onclick="uploadInstagram()" disabled>
+                <span id="ig-upload-btn-spinner" class="ig-spinner hidden"></span>
+                <span id="ig-upload-btn-label">📤 Instagram에 게시</span>
+              </button>
+              <div id="ig-upload-blocked" class="alert-warn mt-3 hidden">
+                <strong>게시 불가</strong>
+                <div id="ig-upload-blocked-message" class="text-sm mt-1"></div>
+              </div>
+              <div id="ig-upload-result" class="hidden mt-4"></div>
               <div id="ig-upload-log" class="log-console mt-4 hidden"></div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
