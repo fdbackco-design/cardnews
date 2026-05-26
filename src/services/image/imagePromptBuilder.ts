@@ -4,41 +4,23 @@ export const CARD_IMAGE_WIDTH  = 1080;
 export const CARD_IMAGE_HEIGHT = 1350;
 
 const OUTPUT_DIMENSIONS_RULE =
-  `[MANDATORY FORMAT] ASPECT RATIO: 4:5 PORTRAIT. SIZE: ${CARD_IMAGE_WIDTH}x${CARD_IMAGE_HEIGHT} pixels. ` +
-  "You MUST generate a vertical, portrait-oriented image. " +
-  "Do NOT generate a square (1:1) or landscape (16:9, 4:3) image. " +
-  "4:5 vertical portrait orientation is strictly required. " +
-  "The image must be taller than it is wide.";
+  `Generate a pure full-bleed vertical editorial photograph. ` +
+  `Aspect ratio: 4:5 portrait. Target final size: ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT}px. ` +
+  "The photo MUST fill the entire frame from edge to edge — no border, no padding, no margin, no blank area of any kind. " +
+  "If exact 4:5 is not achievable, generate a 3:4 portrait photo suitable for center-cropping to 1080×1350. " +
+  "NEVER create a landscape, square, wide horizontal, letterbox, pillarbox, poster layout, collage, or composite image.";
 
 const NO_TEXT_RULE =
-  "ABSOLUTELY NO TEXT, CAPTIONS, OR ANNOTATIONS IN THIS IMAGE. " +
-  "This image will have Korean text overlaid separately by the application in post-production — do NOT add any text to the image itself. " +
-  "No text. No letters. No Korean text (한글 금지). No English text. No numbers. No logo. No signage. No label. No watermark. No caption. No subtitle. No annotation. " +
-  "Do NOT generate a composite layout with a photo area and a text area — generate a pure photograph only, no text box, no caption box, no info panel. " +
-  "Zero words, subtitles, signs, UI text, handwriting, charts with readable characters, or any typographic element anywhere in the frame. " +
-  "This is a strict non-negotiable requirement — if any Hangul, English character, number, or symbol appears in the image it will be rejected.";
+  "[NO TEXT — ABSOLUTE] This image must contain ZERO text of any kind. " +
+  "No Korean text. No English text. No letters. No numbers. No captions. No subtitles. No signs. No labels. " +
+  "No packaging labels. No UI text. No screen text. No watermark. No logo. No handwritten text. " +
+  "No chart text. No infographic elements. No text box. No caption area. No white text panel. No gray text panel. " +
+  "Card text will be added by the application in post-production — do NOT include any text in this image. " +
+  "Any character, Hangul, or symbol in the generated image is an automatic failure.";
 
 const KOREAN_PERSON_RULE =
-  "IF ANY PERSON APPEARS: Must be clearly Korean ethnicity (South Korean appearance — Korean facial features, hair, and styling). " +
-  "Not Japanese, not Chinese, not other East Asian or Western ethnicities. Natural, unposed, editorial lifestyle photography.";
-
-const FRAMING_RULE =
-  "FRAMING (MANDATORY): 1080x1350px vertical composition. " +
-  "Main subject centered or positioned center-right in the frame — NEVER on the left side. " +
-  "If the subject must be off-center, lean right, not left. " +
-  "Subject fully visible and not cropped. No cropped face, no cropped hands, no cut-off objects. " +
-  "The background MUST fill the entire 1080x1350 frame edge to edge — rich environment, no white space, no gray space, no empty void. " +
-  "Leave the bottom 30% softly blurred or plain (not white) for Korean text overlay. " +
-  "Premium Korean lifestyle editorial photo — the subject is large and fills the frame confidently.";
-
-const FRAMING_NEGATIVE_RULE =
-  "STRICTLY AVOID: text, letters, Korean text, English text, numbers, logo, signage, label, watermark, caption, " +
-  "cropped face, cropped hands, cut-off object, cut-off body, subject at edge, " +
-  "extreme close-up that cuts off the subject, awkward framing, cluttered bottom area, " +
-  "subject positioned on the left side of the frame, " +
-  "large empty white area on the right side, large empty gray area on the right side, " +
-  "white background, white void, gray void, white padding, empty corners, small subject surrounded by empty space, " +
-  "important details hidden by text overlay area.";
+  "IF A PERSON APPEARS: Must be clearly Korean (South Korean — Korean facial features, hair, styling). " +
+  "Not Japanese, not Chinese, not other East Asian or Western. Natural editorial lifestyle, not posed.";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 
@@ -311,19 +293,18 @@ function buildMood(category: SceneCategory): string {
 // ── 구도 ──────────────────────────────────────────────────────────────────────
 
 function buildComposition(shotType: ShotType): string {
-  // 하단 30% = 텍스트 안전영역(흰색 아닌 자연 배경), 피사체는 중앙 또는 우측 중앙에 크게 배치
-  const safeBottom  = "Bottom 30% of frame: softly blurred or plain environmental background (NOT white, NOT gray void) — reserved for Korean text overlay. Subject face and key details stay above this zone.";
-  const safeEdges   = "Subject fully visible — absolutely no cropping at any edge. Subject is large and fills the frame confidently.";
-  const centerRight = "Main subject centered or slightly right of center. If off-center, lean RIGHT — NEVER position the subject on the left side. Rich background fills ALL four corners — no empty white or gray space anywhere.";
+  const safeEdges   = "Subject fully visible — no cropping at any edge. Subject large and fills the frame.";
+  const centerRight = "Main subject centered or slightly right of center. Rich photographic background fills ALL four corners — no empty white or gray area anywhere.";
+  const fullFrame   = "The photograph fills the entire frame edge to edge — no blank lower area, no padding, no margin, no caption zone.";
 
   const comps: Record<ShotType, string> = {
-    "wide shot":          `${centerRight} Environmental context richly fills the entire background. Subject is prominent, not small. ${safeEdges} ${safeBottom}`,
-    "close-up":           `${centerRight} Subject fills 60–70% of the frame. Soft bokeh background fills remaining space — no white void. ${safeEdges} ${safeBottom}`,
-    "medium shot":        `${centerRight} Natural depth of field. Subject is large and dominant in frame. ${safeEdges} ${safeBottom}`,
-    "top-down":           `Pure overhead bird's-eye view. Subject centered on a richly textured surface — no plain white background. Symmetrical, full-frame composition. ${safeEdges} ${safeBottom}`,
-    "side profile":       `Pure 90-degree side view. Subject centered-right, fully in frame — head to mid-torso visible. Background richly fills all empty space. ${safeEdges} ${safeBottom}`,
-    "over-the-shoulder":  `Camera just behind and slightly above the subject. Subject centered-right, fully in frame. Environmental depth fills the background richly. ${safeEdges} ${safeBottom}`,
-    "detail shot":        `Macro or textural detail centered or centered-right in frame. Very shallow depth of field — main element sharp, rich bokeh fills background. Subject fully visible. ${safeEdges} ${safeBottom}`,
+    "wide shot":          `${centerRight} Environmental context richly fills the entire background. Subject prominent, not small. ${safeEdges} ${fullFrame}`,
+    "close-up":           `${centerRight} Subject fills 60–70% of the frame. Rich bokeh background — no white void. ${safeEdges} ${fullFrame}`,
+    "medium shot":        `${centerRight} Natural depth of field. Subject large and dominant. ${safeEdges} ${fullFrame}`,
+    "top-down":           `Pure overhead bird's-eye view. Subject centered on richly textured surface — no plain white background. ${safeEdges} ${fullFrame}`,
+    "side profile":       `Pure 90-degree side view. Subject centered-right, fully in frame. Background richly fills all space. ${safeEdges} ${fullFrame}`,
+    "over-the-shoulder":  `Camera just behind and slightly above subject. Subject centered-right, fully in frame. Environmental depth fills background richly. ${safeEdges} ${fullFrame}`,
+    "detail shot":        `Macro or textural detail, centered or centered-right. Very shallow depth of field — rich bokeh fills background. ${safeEdges} ${fullFrame}`,
   };
   return comps[shotType];
 }
@@ -332,43 +313,25 @@ function buildComposition(shotType: ShotType): string {
 
 function buildAvoid(category: SceneCategory, subjectType: SubjectType): string[] {
   const base = [
-    // ── 텍스트 금지 (explicit, 항목별로 명확하게) ──────────────────────────
-    "text",
-    "letters",
-    "Korean text",
-    "English text",
-    "numbers",
-    "logo",
-    "signage",
-    "label",
-    "watermark",
-    "caption",
-    "no readable text on screens, papers, packaging, signs, or clothing",
-    "no Korean Hangul, English, or any alphabet or numerals",
-    "no charts, graphs, or infographics",
-    "no visible UI screens with any content",
-    "no speech bubbles, subtitles, or writing of any kind",
-    "no signboards, street signs, or book pages with writing",
-    // ── 프레이밍 negative prompts (항상 적용) ──────────────────────────────
-    "cropped face",
-    "cropped hands",
-    "cut-off object",
-    "cut-off body at any edge",
-    "subject at edge",
-    "subject touching or beyond the left, right, or bottom edges",
+    // ── 텍스트 금지 ────────────────────────────────────────────────────────
+    "text", "letters", "Korean text", "English text", "numbers",
+    "logo", "signage", "label", "watermark", "caption", "subtitle",
+    "text box", "caption area", "white text panel", "gray text panel",
+    "packaging text", "UI text", "screen text", "handwritten text",
+    "chart labels", "infographic elements",
+    // ── 빈 여백 / 레이아웃 금지 ───────────────────────────────────────────
+    "blank bottom area", "white lower panel", "gray lower panel",
+    "white border", "gray border", "padding", "margin",
+    "letterbox", "pillarbox",
+    "poster layout", "collage", "split layout", "composite layout",
+    // ── 비율 금지 ─────────────────────────────────────────────────────────
+    "landscape image", "square image", "horizontal image",
+    // ── 프레이밍 금지 ─────────────────────────────────────────────────────
+    "cropped face", "cropped hands", "cut-off object", "cut-off body",
     "subject positioned on the left side of the frame",
     "large empty area on the right side",
-    "large empty white area",
-    "large empty gray area",
-    "white void",
-    "gray void",
-    "white padding",
-    "empty corners",
-    "small subject with large empty surroundings",
-    "extreme close-up",
+    "small subject surrounded by empty space",
     "awkward framing",
-    "cluttered bottom third",
-    "important subject details hidden in the lower area of the frame",
   ];
   if (subjectType === "person" || subjectType === "mixed") {
     base.push(
@@ -475,39 +438,40 @@ export function buildCardImagePrompt(params: {
     : "";
 
   const prompt = [
-    // ── 0순위: 출력·프레이밍·금지 (모델이 반드시 준수) ─────────────────────
-    `[MANDATORY OUTPUT] ${OUTPUT_DIMENSIONS_RULE}`,
-    `[MANDATORY FRAMING] ${FRAMING_RULE}`,
-    `[MANDATORY — NO TEXT] ${NO_TEXT_RULE}`,
+    // ── 0순위: 포맷 (최우선) ──────────────────────────────────────────────
+    `[CRITICAL FORMAT] ${OUTPUT_DIMENSIONS_RULE}`,
     coverFullBleedRule,
     "",
-    // ── 1순위: 핵심 피사체 ───────────────────────────────────────────────────
+    // ── 1순위: 장면 ───────────────────────────────────────────────────────
+    "[SCENE]",
     scene.action,
     "",
-    // ── 2순위: 촬영 방식 — 사진 한정 ────────────────────────────────────────
-    "PHOTOGRAPHY STYLE: Real-life editorial photography. Warm natural light, soft contrast, Korean healthcare lifestyle magazine quality.",
-    "THIS IS A PHOTOGRAPH — NOT an illustration, NOT a 3D render, NOT clip-art, NOT a vector graphic, NOT an icon, NOT a medical diagram, NOT an infographic.",
+    // ── 2순위: 촬영 스타일 ────────────────────────────────────────────────
+    "[PHOTOGRAPHY STYLE]",
+    "Real-life editorial photography. Warm natural light, soft contrast, Korean healthcare lifestyle magazine quality.",
+    "THIS IS A PHOTOGRAPH — not an illustration, not a 3D render, not clip-art, not a poster with text panels.",
     "",
-    // ── 3순위: 기술 파라미터 ───────────────────────────────────────────────
-    `Shot type: ${scene.shotType}`,
-    `Setting: ${scene.setting}`,
-    `Mood: ${scene.mood}`,
-    `Composition: ${scene.composition}`,
-    "",
-    // ── 인물 규칙 ─────────────────────────────────────────────────────────
+    // ── 3순위: 구도 ───────────────────────────────────────────────────────
+    "[COMPOSITION]",
+    `Shot type: ${scene.shotType}. Setting: ${scene.setting}. Mood: ${scene.mood}.`,
+    scene.composition,
     peopleRule,
     "",
-    // ── CRITICAL 금지 규칙 ────────────────────────────────────────────────
-    "[CRITICAL — STRICTLY ENFORCED]",
-    "Real-life photography ONLY. Absolutely no vector icons, no clip-art, no 3D-rendered objects, no anatomical or medical diagrams, no infographics, no cartoon-style or illustrative imagery.",
-    `${NO_TEXT_RULE} Additional avoid: ${avoidList}.`,
-    FRAMING_NEGATIVE_RULE,
-    "Any screen, device display, or monitor MUST be completely blank and turned off — zero digits or characters visible.",
-    "Any product, food package, or bottle MUST have unreadable or absent labels.",
+    // ── 4순위: 텍스트 절대 금지 ──────────────────────────────────────────
+    NO_TEXT_RULE,
     "",
-    // ── 출력 규격 (재확인) ─────────────────────────────────────────────────
-    `FINAL OUTPUT: ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} px portrait (4:5). Premium Korean lifestyle editorial photo. Image must contain zero text. No letters. No Korean text. No English text. No numbers. No logo. No signage. No watermark. ${KOREAN_PERSON_RULE}`,
-  ].join("\n").trim();
+    // ── 5순위: 부정 조건 ──────────────────────────────────────────────────
+    `[NEGATIVE] Do NOT include: ${avoidList}; ` +
+    "any device or monitor screen with digits; any product packaging label; " +
+    "landscape or square photo; letterbox or pillarbox bars; blank bottom area; white or gray lower panel.",
+    "",
+    // ── 최종 확인 ────────────────────────────────────────────────────────
+    `[FINAL VERIFICATION] This image MUST: ` +
+    `(1) be a vertical 4:5 portrait photo filling 1080×1350 entirely edge to edge with photographic content, ` +
+    `(2) have rich photographic content in EVERY corner including the bottom — no blank lower area whatsoever, ` +
+    `(3) contain ZERO text, numbers, or symbols anywhere, ` +
+    `(4) have NO white or gray lower panel. ${KOREAN_PERSON_RULE}`,
+  ].filter(Boolean).join("\n").trim();
 
   return { prompt, scene };
 }
@@ -538,27 +502,34 @@ export function buildImagenPromptFromLlmQuery(llmImagePrompt: string): string {
 
   if (!LLM_STYLE_MARKERS.test(scene)) {
     scene =
-      "High-quality realistic photography, warm lighting, cozy interior, lifestyle Korean/Asian mood. " +
-      scene;
+      "High-quality realistic photography, warm lighting, Korean lifestyle editorial mood. " + scene;
   }
-  if (!/NO vector icons|NO clip-art|NO text/i.test(scene)) {
-    scene +=
-      " NO vector icons, NO clip-art, NO text, NO letters, NO Korean text, NO English text, NO numbers, NO logo, NO signage, NO label, NO watermark, NO caption, NO typography on image, NO pure medical illustrations.";
-  }
-  if (!/center space|centered|right side|center-right/i.test(scene)) {
-    scene +=
-      " Main subject centered or center-right in the frame — never on the left side. Subject fully visible and not cropped. Rich background fills the entire frame edge to edge — no white or gray empty areas.";
+  // 중앙/우측 배치 보정 (LLM 프롬프트에 누락된 경우)
+  if (!/centered|center-right/i.test(scene)) {
+    scene += " Main subject centered or center-right. Subject fully visible. Rich background fills the entire frame edge to edge — no blank area.";
   }
 
   return [
-    `[MANDATORY OUTPUT] ${OUTPUT_DIMENSIONS_RULE}`,
-    `[MANDATORY FRAMING] ${FRAMING_RULE}`,
-    `[MANDATORY — NO TEXT] ${NO_TEXT_RULE}`,
+    `[CRITICAL FORMAT] ${OUTPUT_DIMENSIONS_RULE}`,
+    "",
+    "[SCENE]",
     scene,
-    "PHOTOGRAPHY STYLE: Real-life editorial photography. Warm natural light, soft contrast, premium Korean lifestyle editorial photo quality.",
-    "THIS IS A PHOTOGRAPH — NOT an illustration, NOT a 3D render, NOT clip-art, NOT a vector graphic.",
+    "",
+    "[PHOTOGRAPHY STYLE]",
+    "Real-life editorial photography. Warm natural light, soft contrast, premium Korean lifestyle editorial quality.",
+    "THIS IS A PHOTOGRAPH — not an illustration, not a 3D render, not clip-art, not a poster with text panels.",
+    "",
+    "[COMPOSITION]",
+    "Main subject centered or slightly right of center. Rich photographic background fills ALL four corners — no blank area anywhere.",
     KOREAN_PERSON_RULE,
-    FRAMING_NEGATIVE_RULE,
-    `FINAL OUTPUT: ${CARD_IMAGE_WIDTH}×${CARD_IMAGE_HEIGHT} px portrait (4:5). Image must contain zero text. No letters. No Korean text. No English text. No numbers. No logo. No signage. No watermark.`,
-  ].join("\n\n");
+    "",
+    NO_TEXT_RULE,
+    "",
+    "[NEGATIVE] landscape image, square image, horizontal image, letterbox, pillarbox, " +
+    "white border, gray border, blank bottom area, white lower panel, gray lower panel, " +
+    "caption area, text box, infographic, poster layout, collage, typography overlay, " +
+    "cropped subject, subject at edge.",
+    "",
+    `[FINAL VERIFICATION] Vertical 4:5 portrait photo, 1080×1350px, rich photographic content edge to edge in every corner, ZERO text anywhere.`,
+  ].join("\n");
 }

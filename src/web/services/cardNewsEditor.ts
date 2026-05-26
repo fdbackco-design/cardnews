@@ -1,10 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
+import { pathToFileURL } from "url";
+import sharp from "sharp";
 
 import { renderCardNewsHtml } from "../../generator/renderHtml";
 import { captureCardsFromHtml } from "../../generator/captureCards";
 import { writeTextFile } from "../../utils/fs";
 import type { CardNewsSet } from "../../types/cardnews";
+import { CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT } from "../../services/image/imagePromptBuilder";
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
 
@@ -76,6 +79,41 @@ export function updateCard(setId: string, cardIndex: number, patch: CardPatch): 
 
   saveDeck(setId, deck);
   return deck;
+}
+
+// ── 배경 이미지 교체 ──────────────────────────────────────────────────────────
+
+export async function updateCardImage(
+  setId: string,
+  cardIndex: number,
+  imageBuffer: Buffer,
+): Promise<{ localPath: string; fileUrl: string }> {
+  const deck = loadDeck(setId);
+  if (!deck) throw new Error(`deck.json not found for setId: ${setId}`);
+
+  const padded = String(cardIndex + 1).padStart(2, "0");
+  const genDir = path.resolve(process.cwd(), "output", "generated-images", setId);
+  fs.mkdirSync(genDir, { recursive: true });
+  const localPath = path.join(genDir, `card-${padded}.png`);
+
+  const finalBuffer = await sharp(imageBuffer)
+    .resize(CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT, { fit: "cover", position: "center" })
+    .png()
+    .toBuffer();
+  fs.writeFileSync(localPath, finalBuffer);
+
+  const fileUrl = pathToFileURL(localPath).href;
+
+  if (cardIndex === 0) {
+    deck.cover.imageUrl = fileUrl;
+  } else {
+    const card = deck.cards[cardIndex - 1];
+    if (!card) throw new Error(`card index ${cardIndex} not found`);
+    card.imageUrl = fileUrl;
+  }
+  saveDeck(setId, deck);
+
+  return { localPath, fileUrl };
 }
 
 // ── 재렌더링 / 재캡처 ─────────────────────────────────────────────────────────

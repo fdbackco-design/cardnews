@@ -256,6 +256,26 @@ export async function generateImagenCardImage(params: {
       return null;
     }
 
+    // 4단계: 하단 여백 감지 — 하단 20%가 75% 이상 밝은 픽셀(흰색/회색)이면 실패
+    const bottomH = Math.max(1, Math.floor(CARD_IMAGE_HEIGHT * 0.20));
+    const bottomY = CARD_IMAGE_HEIGHT - bottomH;
+    const bottomGray = await sharp(finalBuffer)
+      .extract({ left: 0, top: bottomY, width: CARD_IMAGE_WIDTH, height: bottomH })
+      .greyscale()
+      .raw()
+      .toBuffer()
+      .catch(() => null);
+    if (bottomGray) {
+      const lightPixels = Array.from(bottomGray).filter((v) => v > 220).length;
+      const lightRatio  = lightPixels / bottomGray.length;
+      if (lightRatio > 0.75) {
+        console.warn(
+          `[GeminiImage] 하단 여백 감지 (밝은 픽셀 ${Math.round(lightRatio * 100)}%) — Pexels fallback`,
+        );
+        return null;
+      }
+    }
+
     fs.writeFileSync(localPath, finalBuffer);
     console.log(
       `[GeminiImage] generated (${result.model}): ${path.basename(localPath)} ` +

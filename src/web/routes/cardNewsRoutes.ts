@@ -12,6 +12,7 @@ import {
 import {
   loadDeck,
   updateCard,
+  updateCardImage,
   rerenderDeck,
   recaptureCards,
   getSetInfo,
@@ -223,6 +224,34 @@ cardNewsRoutes.post("/sets/:setId/recapture", async (_req: Request, res: Respons
     const imagePaths = await recaptureCards(setId);
     const toRelUrl = makeToRelUrl();
     res.json({ ok: true, imageUrls: imagePaths.map(toRelUrl) });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ── POST /api/cardnews/sets/:setId/cards/:cardIndex/image ────────────────────
+
+cardNewsRoutes.post("/sets/:setId/cards/:cardIndex/image", async (req: Request, res: Response) => {
+  const setId = String(req.params["setId"] ?? "");
+  const cardIndex = parseInt(String(req.params["cardIndex"] ?? ""), 10);
+  if (!setId || isNaN(cardIndex)) {
+    res.status(400).json({ error: "setId and valid cardIndex required" });
+    return;
+  }
+  const body = req.body as { imageBase64?: string };
+  if (!body.imageBase64) {
+    res.status(400).json({ error: "imageBase64가 필요합니다." });
+    return;
+  }
+  try {
+    const base64Data = body.imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+    const { localPath } = await updateCardImage(setId, cardIndex, buffer);
+
+    const outputBase = path.resolve(process.cwd(), process.env["OUTPUT_DIR"] ?? "output");
+    const relPath = path.relative(outputBase, localPath).replace(/\\/g, "/");
+    res.json({ ok: true, imageUrl: "/output/" + relPath });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });

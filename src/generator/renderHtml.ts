@@ -73,6 +73,17 @@ function getLocalFontFaces(): string {
     .join("\n");
 }
 
+// ── 로고 ──────────────────────────────────────────────────────────────────────
+
+function getLogoHtml(): string {
+  const logoPath = path.resolve(process.cwd(), "public/assets/white.png");
+  if (fs.existsSync(logoPath)) {
+    const fileUrl = pathToFileURL(logoPath).href;
+    return `<img class="card__logo" src="${fileUrl}" alt="TY Life Partners" />`;
+  }
+  return `<p class="card__logo">TY Life Partners</p>`;
+}
+
 // ── 배경 이미지 ───────────────────────────────────────────────────────────────
 
 function bgImg(url?: string): string {
@@ -101,7 +112,7 @@ ${bgImg(cover.imageUrl)}  <div class="card__overlay"></div>
     <div class="card__label-rule"></div>
     <h1 class="card__cover-title">${titleHtml}</h1>
 ${subtitleHtml}  </div>
-  <p class="card__logo">TY Life Partners</p>
+  ${getLogoHtml()}
 </section>`;
 }
 
@@ -184,7 +195,7 @@ ${bgImg(card.imageUrl)}  <div class="card__overlay"></div>
       <h2 class="card__title">${esc(card.title)}</h2>
 ${subtitleHtml}${introHtml}${highlightsHtml}${bulletsHtml}${outroHtml}    </div>
   </div>
-  <p class="card__logo">TY Life Partners</p>
+  ${getLogoHtml()}
 </section>`;
 }
 

@@ -21,6 +21,7 @@ const state = {
   currentDeck: null,
   editingCardIndex: 0,
   editingSetId: null,
+  _pendingImageBase64: null,
 };
 
 /* ── API Client ────────────────────────────────────────────────────────────── */
@@ -1027,6 +1028,9 @@ function renderEditorForm(index) {
   const deck = state.currentDeck;
   if (!deck) { panel.innerHTML = '<div class="text-muted text-sm">deck.json 없음</div>'; return; }
 
+  // 카드 전환 시 pending 이미지 초기화
+  state._pendingImageBase64 = null;
+
   let fieldsHtml = '';
 
   if (index === 0) {
@@ -1072,10 +1076,79 @@ function renderEditorForm(index) {
   panel.innerHTML = `
     <div class="text-sm text-muted mb-3" style="font-weight:600">${label} 편집</div>
     ${fieldsHtml}
+    <div class="editor-field mt-4" style="border-top:1px solid var(--border);padding-top:16px">
+      <label style="margin-bottom:8px;display:block">배경 이미지 교체</label>
+      <input type="file" id="ef-image-file" accept="image/*" style="display:none" onchange="handleImageFileChange(${index})" />
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ef-image-file').click()">파일 선택</button>
+        <span id="ef-image-filename" class="text-muted text-sm">선택된 파일 없음</span>
+      </div>
+      <div id="ef-image-preview" style="display:none;margin-top:10px;display:flex;align-items:center;gap:12px">
+        <img id="ef-image-preview-img" style="width:72px;height:90px;object-fit:cover;border-radius:4px;border:1px solid var(--border)" />
+        <button id="upload-image-btn" class="btn btn-secondary btn-sm" onclick="uploadCardImage(${index})" disabled>이미지 적용</button>
+      </div>
+    </div>
     <div class="editor-actions">
       <button class="btn btn-primary btn-sm" onclick="saveCard()">💾 저장</button>
       <button id="rebuild-btn" class="btn btn-success btn-sm" onclick="saveAndRebuild()">🔨 저장 + 재빌드</button>
     </div>`;
+}
+
+function handleImageFileChange(cardIndex) {
+  const fileInput = document.getElementById('ef-image-file');
+  const file = fileInput && fileInput.files[0];
+  if (!file) return;
+
+  document.getElementById('ef-image-filename').textContent = file.name;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const previewEl = document.getElementById('ef-image-preview');
+    const imgEl = document.getElementById('ef-image-preview-img');
+    if (imgEl) imgEl.src = e.target.result;
+    if (previewEl) previewEl.style.display = 'flex';
+
+    const btn = document.getElementById('upload-image-btn');
+    if (btn) btn.disabled = false;
+
+    state._pendingImageBase64 = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function uploadCardImage(cardIndex) {
+  const setId = state.editingSetId;
+  if (!setId || !state._pendingImageBase64) return;
+
+  const btn = document.getElementById('upload-image-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 적용 중...'; }
+
+  try {
+    const res = await fetch(`/api/cardnews/sets/${setId}/cards/${cardIndex}/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: state._pendingImageBase64 }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || String(res.status));
+    }
+    const data = await res.json();
+
+    // 썸네일 미리보기 즉시 갱신
+    const thumb = document.getElementById(`editor-thumb-${cardIndex}`);
+    if (thumb) {
+      const img = thumb.querySelector('img');
+      if (img) img.src = data.imageUrl + '?t=' + Date.now();
+    }
+
+    showRebuildStatus('success', '✅ 이미지 교체 완료 — 재빌드하면 PNG에 반영됩니다');
+    state._pendingImageBase64 = null;
+    if (btn) { btn.textContent = '✅ 적용됨'; }
+  } catch (err) {
+    showRebuildStatus('failed', '❌ 이미지 교체 실패: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '이미지 적용'; }
+  }
 }
 
 function getFormValues(index) {
