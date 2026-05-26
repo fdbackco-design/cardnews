@@ -67,11 +67,11 @@ async function callPredict(
         instances:  [{ prompt }],
         parameters: {
           sampleCount:       1,
-          // 1080×1350 = 4:5 (카드뉴스 규격; 저장 시 sharp로 정확히 리사이즈)
-          aspectRatio:       "4:5",
+          // "4:5"는 Imagen 미지원 → 가장 가까운 세로 비율 "3:4" 사용
+          // 저장 시 sharp fit:"cover"로 1080×1350 정확히 크롭
+          aspectRatio:       "3:4",
           personGeneration:  "ALLOW_ADULT",
           safetyFilterLevel: "BLOCK_SOME",
-          // negativePrompt: Imagen API에서 더 이상 지원하지 않으므로 제거
         },
       }),
     });
@@ -116,9 +116,12 @@ async function callGenerateContent(
       body: JSON.stringify({
         contents:         [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          // responseModalities에 IMAGE만 지정 — TEXT 포함 시 텍스트 응답이 우선되어 이미지 미반환
           responseModalities: ["IMAGE"],
-          // 비율은 generateContent API에서 지원하지 않으므로 프롬프트 텍스트로만 제어
+          // v1beta 공식 규격: generationConfig.imageConfig (top-level imageGenerationConfig 아님)
+          imageConfig: {
+            aspectRatio: "4:5",
+            imageSize:   "1K",
+          },
         },
       }),
     });
@@ -195,17 +198,23 @@ export async function generateImagenCardImage(params: {
   }
 
   // ── 모델 시도 순서 ─────────────────────────────────────────────────────────
-  //  1. IMAGE_GENERATION_MODEL 환경변수 (설정된 경우)
-  //  2. gemini-2.5-flash-image            (기본값)
-  //  3. IMAGEN_MODEL 환경변수             (선택적 — Imagen 계열)
+  //  Imagen (:predict API) → aspectRatio:"4:5" 네이티브 지원 → 4:5 비율 보장
+  //  Gemini Flash (:generateContent) → aspectRatio 미지원, 비율 불보장 (fallback)
+  //
+  //  1. IMAGEN_MODEL 환경변수 (callPredict — aspectRatio 4:5 지원)
+  //  2. IMAGE_GENERATION_MODEL 환경변수 (명시 지정 시)
+  //  3. gemini-2.5-flash-image (최후 fallback, 비율 보장 없음)
   // ──────────────────────────────────────────────────────────────────────────
   const customModel = process.env["IMAGE_GENERATION_MODEL"];
   const imagenModel = process.env["IMAGEN_MODEL"];
 
   const modelQueue: string[] = [];
-  if (customModel) modelQueue.push(customModel);
-  modelQueue.push("gemini-2.5-flash-image");
+  // 1순위: 4:5 네이티브 지원 — Gemini Flash (:generateContent, aspectRatio:"4:5")
+  if (customModel && !customModel.startsWith("imagen-")) modelQueue.push(customModel);
+  if (!modelQueue.includes("gemini-2.5-flash-image")) modelQueue.push("gemini-2.5-flash-image");
+  // 2순위 fallback: Imagen (:predict, aspectRatio:"3:4" → cover crop으로 1080×1350)
   if (imagenModel && !modelQueue.includes(imagenModel)) modelQueue.push(imagenModel);
+  if (customModel?.startsWith("imagen-") && !modelQueue.includes(customModel)) modelQueue.push(customModel);
 
   let result: { bytes: string; model: string } | null = null;
   for (const model of modelQueue) {
