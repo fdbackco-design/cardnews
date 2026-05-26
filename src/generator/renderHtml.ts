@@ -180,11 +180,9 @@ function renderContentCard(card: ContentCard): string {
 ${bgImg(card.imageUrl)}  <div class="card__overlay"></div>
   <span class="card__label-corner">라이프 가이드</span>
   <div class="card__content">
-    <div class="card__top">
-      <h2 class="card__title">${esc(card.title)}</h2>
-${subtitleHtml}    </div>
     <div class="card__body">
-${introHtml}${highlightsHtml}${bulletsHtml}${outroHtml}    </div>
+      <h2 class="card__title">${esc(card.title)}</h2>
+${subtitleHtml}${introHtml}${highlightsHtml}${bulletsHtml}${outroHtml}    </div>
   </div>
   <p class="card__logo">TY Life Partners</p>
 </section>`;

@@ -233,9 +233,9 @@ export async function generateImagenCardImage(params: {
     fs.mkdirSync(path.dirname(localPath), { recursive: true });
     const rawBuffer = Buffer.from(result.bytes, "base64");
 
-    // 1단계: 흰색 letterbox/padding 제거 (API가 흰 테두리를 포함할 경우 대비)
+    // 1단계: letterbox/padding 제거 — 코너 픽셀 색상 자동 감지 (흰색·베이지·회색 모두 처리)
     const trimmedBuffer = await sharp(rawBuffer)
-      .trim({ background: "#ffffff", threshold: 10 })
+      .trim({ threshold: 15 })
       .toBuffer()
       .catch(() => rawBuffer);
 

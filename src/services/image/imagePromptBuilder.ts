@@ -11,10 +11,12 @@ const OUTPUT_DIMENSIONS_RULE =
   "The image must be taller than it is wide.";
 
 const NO_TEXT_RULE =
-  "ABSOLUTELY NO TEXT IN IMAGE. " +
-  "No text. No letters. No Korean text. No English text. No numbers. No logo. No signage. No label. No watermark. No caption. " +
+  "ABSOLUTELY NO TEXT, CAPTIONS, OR ANNOTATIONS IN THIS IMAGE. " +
+  "This image will have Korean text overlaid separately by the application in post-production — do NOT add any text to the image itself. " +
+  "No text. No letters. No Korean text (한글 금지). No English text. No numbers. No logo. No signage. No label. No watermark. No caption. No subtitle. No annotation. " +
+  "Do NOT generate a composite layout with a photo area and a text area — generate a pure photograph only, no text box, no caption box, no info panel. " +
   "Zero words, subtitles, signs, UI text, handwriting, charts with readable characters, or any typographic element anywhere in the frame. " +
-  "This is a strict non-negotiable requirement — if any character or symbol appears in the image it will be rejected.";
+  "This is a strict non-negotiable requirement — if any Hangul, English character, number, or symbol appears in the image it will be rejected.";
 
 const KOREAN_PERSON_RULE =
   "IF ANY PERSON APPEARS: Must be clearly Korean ethnicity (South Korean appearance — Korean facial features, hair, and styling). " +
