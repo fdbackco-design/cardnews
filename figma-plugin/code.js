@@ -20,18 +20,20 @@ function weightToStyle(weight) {
 }
 
 async function loadFont(family, weight) {
-  const style = weightToStyle(weight);
-  const candidates = [family, ...(FONT_MAP[family] || [])];
-  for (const candidate of candidates) {
+  var style = weightToStyle(weight);
+  var fallbacks = FONT_MAP[family] || [];
+  var candidates = [family].concat(fallbacks);
+  for (var i = 0; i < candidates.length; i++) {
+    var candidate = candidates[i];
     try {
-      await figma.loadFontAsync({ family: candidate, style });
-      return { family: candidate, style };
-    } catch {
-      // 해당 weight가 없으면 Regular 시도
+      await figma.loadFontAsync({ family: candidate, style: style });
+      return { family: candidate, style: style };
+    } catch (err) {
+      // 해당 weight 스타일이 없으면 Regular 시도
       try {
         await figma.loadFontAsync({ family: candidate, style: "Regular" });
         return { family: candidate, style: "Regular" };
-      } catch {
+      } catch (err2) {
         continue;
       }
     }
@@ -92,9 +94,9 @@ async function createImageLayer(layer, imageBytes) {
 
   if (imageBytes && imageBytes.length > 0) {
     try {
-      const img = figma.createImage(new Uint8Array(imageBytes));
+      var img = figma.createImage(new Uint8Array(imageBytes));
       node.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: img.hash }];
-    } catch {
+    } catch (err) {
       node.fills = [{ type: "SOLID", color: { r: 0.8, g: 0.8, b: 0.8 } }];
     }
   } else {
@@ -112,11 +114,12 @@ async function createShapeLayer(layer) {
   node.y = layer.y;
   node.resize(layer.width, layer.height);
 
-  const c = parseColor(layer.fill);
+  var c = parseColor(layer.fill);
+  var layerOpacity = (layer.opacity !== null && layer.opacity !== undefined) ? layer.opacity : 1;
   node.fills = [{
     type: "SOLID",
     color: { r: c.r, g: c.g, b: c.b },
-    opacity: c.a * (layer.opacity ?? 1),
+    opacity: c.a * layerOpacity,
   }];
 
   return node;

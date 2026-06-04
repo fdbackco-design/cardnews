@@ -113,11 +113,11 @@ function setButtonState(loading) {
 async function fetchImageBytes(url) {
   if (!url) return null;
   try {
-    const res = await fetch(url);
+    var res = await fetch(url);
     if (!res.ok) return null;
-    const buffer = await res.arrayBuffer();
+    var buffer = await res.arrayBuffer();
     return Array.from(new Uint8Array(buffer));
-  } catch {
+  } catch (err) {
     return null;
   }
 }

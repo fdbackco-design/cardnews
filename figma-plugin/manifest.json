@@ -6,6 +6,7 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["*"]
+    "allowedDomains": ["*"],
+    "reasoning": "The plugin needs to fetch cardnews JSON and image assets from the user's local NAS server or configured public asset server."
   }
 }
