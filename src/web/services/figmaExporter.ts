@@ -223,22 +223,67 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
     gradients: [{ direction: isTop ? "ttb" : "btt", stops: COVER_ORANGE_STOPS }],
   });
 
-  // 구분선 고정 좌표 (x, width, height 공통 / y는 variant별)
+  // ── CSS 레이아웃 상수 (웹 렌더링 기준) ────────────────────────────────────
+  // .card__label            font-size:34pt, line-height:1  → height = pt(34)
+  //                         margin-bottom: 14px
+  // .card__label-rule       margin-top:4px, height:4px(CSS)/3px(Figma spec), margin-bottom:36px
+  // .card__cover-title      line-height:100pt per line
+  // .card__cover-subtitle   margin-top:22px
+  const LABEL_H     = pt(34);              // label 높이 (line-height:1)
+  const LABEL_MB    = 14;                  // label margin-bottom
+  const RULE_MT     = 4;                   // rule margin-top
+  const RULE_H      = 3;                   // rule 시각 높이 (user spec)
+  const RULE_MB     = 36;                  // rule margin-bottom
+  const TITLE_LH    = pt(100);             // 제목 한 줄 높이
+  const SUBTITLE_MT = 22;                  // 부제 margin-top
+
+  // 구분선 x/width (user spec)
   const RULE_X = 83;
   const RULE_W = 806;
-  const RULE_H = 3;
-  const ruleY = isTop ? 182 : 928;
 
-  const labelH = pt(34) + 10;
-  const titleLineH = pt(100);
-  const titleH = cover.titleLines.length * titleLineH + 10;
+  const titleH = cover.titleLines.length * TITLE_LH;
 
-  // 라이프 가이드 레이블 — 구분선 위 8px
-  const labelY = ruleY - 8 - labelH;
+  let labelY: number, ruleY: number, titleY: number, subtitleY: number;
+
+  if (isTop) {
+    // justify-content: flex-start; padding-top: 120px
+    // 요소를 위에서 아래로 쌓음
+    let y = 120;                              // padding-top
+    labelY  = y;
+    y      += LABEL_H + LABEL_MB + RULE_MT;  // label 높이 + 두 마진
+    ruleY   = y;
+    y      += RULE_H + RULE_MB;              // rule 높이 + margin-bottom
+    titleY  = y;
+    subtitleY = titleY + titleH + SUBTITLE_MT;
+
+  } else {
+    // justify-content: flex-end; padding-bottom: 220px
+    // 마지막 요소의 bottom = 1350 - 220 = 1130
+    // 아래서 위로 역산
+    const contentBottom = CARD_H - 220;      // 1130
+
+    let bottomY = contentBottom;
+
+    // 부제가 있으면 가장 아래에 배치 후 위로 올라감
+    const subLineH = Math.round(pt(38) * 1.30);
+    const subH     = subLineH * 2 + 10;      // 최대 2줄 높이 estimate
+    if (cover.subtitle) {
+      subtitleY = bottomY - subH;
+      bottomY   = subtitleY - SUBTITLE_MT;   // subtitle margin-top 만큼 여백
+    } else {
+      subtitleY = 0;
+    }
+
+    titleY  = bottomY - titleH;
+    ruleY   = titleY - RULE_MB - RULE_H;
+    labelY  = ruleY  - RULE_MT - LABEL_MB - LABEL_H;
+  }
+
+  // 라이프 가이드 레이블
   layers.push({
     type: "text", name: "라이프 가이드 레이블",
     text: cover.label,
-    x: PAD_X, y: labelY, width: 500, height: labelH,
+    x: PAD_X, y: labelY, width: 500, height: LABEL_H + 10,
     fontFamily: "BMKkubulim", fontSize: pt(34), fontWeight: 400,
     lineHeight: Math.round(pt(34) * 1.2),
     color: "rgba(255,255,255,0.92)", align: "left",
@@ -251,25 +296,25 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
     fill: "#FFFFFF", opacity: 0.95,
   });
 
-  // 표지 제목 — 구분선 아래 36px
-  const titleY = ruleY + RULE_H + 36;
+  // 표지 제목
   layers.push({
     type: "text", name: "제목",
     text: cover.titleLines.join("\n"),
-    x: PAD_X, y: titleY, width: CARD_W - PAD_X * 2, height: titleH,
+    x: PAD_X, y: titleY, width: CARD_W - PAD_X * 2, height: titleH + 10,
     fontFamily: "Pretendard", fontSize: pt(82), fontWeight: 500,
-    lineHeight: titleLineH,
+    lineHeight: TITLE_LH,
     color: "#FFFFFF", align: "left",
   });
 
-  // 부제 — 제목 아래 22px
+  // 부제
   if (cover.subtitle) {
+    const subLineH = Math.round(pt(38) * 1.30);
     layers.push({
       type: "text", name: "부제",
       text: cover.subtitle,
-      x: PAD_X, y: titleY + titleH + 22, width: CARD_W - PAD_X * 2, height: pt(38) * 2 + 10,
+      x: PAD_X, y: subtitleY, width: CARD_W - PAD_X * 2, height: subLineH * 2 + 10,
       fontFamily: "Pretendard", fontSize: pt(38), fontWeight: 400,
-      lineHeight: Math.round(pt(38) * 1.30),
+      lineHeight: subLineH,
       color: "rgba(255,255,255,0.82)", align: "left",
     });
   }
