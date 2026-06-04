@@ -145,6 +145,38 @@ async function createImageLayer(layer, imageBytes) {
   return node;
 }
 
+// Figma GRADIENT_LINEAR gradientTransform by direction
+// Maps gradient u-axis (0=start, 1=end) to node normalized space (0-1)
+var GRADIENT_TRANSFORMS = {
+  ttb: [[0, 1, 0], [1, 0, 0]],        // top-to-bottom
+  btt: [[0, 1, 0], [-1, 0, 1]],       // bottom-to-top
+  ltr: [[1, 0, 0], [0, 1, 0]],        // left-to-right
+};
+
+async function createGradientLayer(layer) {
+  const node = figma.createRectangle();
+  node.name = layer.name;
+  node.x = layer.x;
+  node.y = layer.y;
+  node.resize(layer.width, layer.height);
+
+  node.fills = layer.gradients.map(function(g) {
+    var transform = GRADIENT_TRANSFORMS[g.direction] || GRADIENT_TRANSFORMS.ttb;
+    return {
+      type: "GRADIENT_LINEAR",
+      gradientTransform: transform,
+      gradientStops: g.stops.map(function(s) {
+        return {
+          position: s.position,
+          color: { r: s.r, g: s.g, b: s.b, a: s.a },
+        };
+      }),
+    };
+  });
+
+  return node;
+}
+
 async function createShapeLayer(layer) {
   const node = figma.createRectangle();
   node.name = layer.name;
@@ -217,6 +249,8 @@ async function createCardFrame(cardData, imagesMap, offsetX) {
       const key = `${cardData.cardIndex}-${layer.name}`;
       const bytes = imagesMap[key] || null;
       node = await createImageLayer(layer, bytes);
+    } else if (layer.type === "gradient") {
+      node = await createGradientLayer(layer);
     } else if (layer.type === "shape") {
       node = await createShapeLayer(layer);
     } else if (layer.type === "text") {

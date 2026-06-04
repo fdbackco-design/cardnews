@@ -95,7 +95,25 @@ export type FigmaShapeLayer = {
   opacity: number;
 };
 
-export type FigmaLayer = FigmaImageLayer | FigmaTextLayer | FigmaShapeLayer;
+// 그라데이션 레이어 — CSS linear-gradient 근사
+export type GradientStop = {
+  position: number;       // 0-1
+  r: number; g: number; b: number; a: number;  // 0-1 each
+};
+
+export type GradientFill = {
+  direction: "ttb" | "btt" | "ltr";  // top-to-bottom, bottom-to-top, left-to-right
+  stops: GradientStop[];
+};
+
+export type FigmaGradientLayer = {
+  type: "gradient";
+  name: string;
+  x: number; y: number; width: number; height: number;
+  gradients: GradientFill[];
+};
+
+export type FigmaLayer = FigmaImageLayer | FigmaTextLayer | FigmaShapeLayer | FigmaGradientLayer;
 
 export type FigmaCard = {
   cardIndex: number;
@@ -143,8 +161,39 @@ function stripMarkup(text: string): string {
 
 // ── 표지 카드 레이어 빌더 ─────────────────────────────────────────────────────
 
+// 표지 오버레이 그라데이션 스탑 (CSS rgba(234,86,53))
+const COVER_ORANGE_STOPS: GradientStop[] = [
+  { position: 0.00, r: 0.918, g: 0.337, b: 0.208, a: 0.95 },
+  { position: 0.14, r: 0.918, g: 0.337, b: 0.208, a: 0.70 },
+  { position: 0.28, r: 0.918, g: 0.337, b: 0.208, a: 0.35 },
+  { position: 0.50, r: 0.918, g: 0.337, b: 0.208, a: 0.00 },
+];
+
+// 내용 카드 3중 비네팅 그라데이션 (CSS 3개 레이어 근사)
+const CONTENT_VIGNETTE_GRADIENTS: GradientFill[] = [
+  { direction: "ttb", stops: [
+    { position: 0.00, r: 0, g: 0, b: 0, a: 0.62 },
+    { position: 0.18, r: 0, g: 0, b: 0, a: 0.30 },
+    { position: 0.42, r: 0, g: 0, b: 0, a: 0.04 },
+    { position: 0.58, r: 0, g: 0, b: 0, a: 0.00 },
+  ]},
+  { direction: "btt", stops: [
+    { position: 0.00, r: 0, g: 0, b: 0, a: 0.82 },
+    { position: 0.18, r: 0, g: 0, b: 0, a: 0.60 },
+    { position: 0.42, r: 0, g: 0, b: 0, a: 0.22 },
+    { position: 0.62, r: 0, g: 0, b: 0, a: 0.00 },
+  ]},
+  { direction: "ltr", stops: [
+    { position: 0.00, r: 0, g: 0, b: 0, a: 0.32 },
+    { position: 0.48, r: 0, g: 0, b: 0, a: 0.12 },
+    { position: 1.00, r: 0, g: 0, b: 0, a: 0.02 },
+  ]},
+];
+
 function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaLayer[] {
   const layers: FigmaLayer[] = [];
+
+  const isTop = cover.variant !== "bottom";
 
   // 배경 이미지
   layers.push({
@@ -153,14 +202,12 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
     x: 0, y: 0, width: CARD_W, height: CARD_H,
   });
 
-  // 오버레이 (orange gradient 근사치)
+  // 표지 그라데이션 오버레이 (CSS: 180deg/0deg orange gradient)
   layers.push({
-    type: "shape", name: "오버레이",
+    type: "gradient", name: "표지 그라데이션 오버레이",
     x: 0, y: 0, width: CARD_W, height: CARD_H,
-    fill: "#EA5532", opacity: 0.65,
+    gradients: [{ direction: isTop ? "ttb" : "btt", stops: COVER_ORANGE_STOPS }],
   });
-
-  const isTop = cover.variant !== "bottom";
 
   if (isTop) {
     // 텍스트 상단 배치 (padding-top: 120px)
@@ -290,11 +337,11 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
     x: 0, y: 0, width: CARD_W, height: CARD_H,
   });
 
-  // 오버레이 (어두운 비네팅 근사치)
+  // 3중 비네팅 그라데이션 오버레이 (CSS: top/bottom/left black gradients)
   layers.push({
-    type: "shape", name: "오버레이",
+    type: "gradient", name: "오버레이",
     x: 0, y: 0, width: CARD_W, height: CARD_H,
-    fill: "#000000", opacity: 0.45,
+    gradients: CONTENT_VIGNETTE_GRADIENTS,
   });
 
   // 우상단 라이프 가이드 레이블 (absolute)
@@ -309,17 +356,6 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
     fontFamily: "BMKkubulim", fontSize: pt(26), fontWeight: 400,
     lineHeight: Math.round(pt(26) * 1.2),
     color: "rgba(255,255,255,0.88)", align: "right",
-  });
-
-  // 페이지 번호 (좌상단, absolute)
-  layers.push({
-    type: "text", name: "페이지 번호",
-    text: String(displayIndex).padStart(2, "0"),
-    x: PAD_X, y: 86,
-    width: 100, height: pt(28) + 10,
-    fontFamily: "BMKkubulim", fontSize: pt(28), fontWeight: 400,
-    lineHeight: pt(28),
-    color: "#FF6B3D", align: "left",
   });
 
   // ── 본문 레이어: 하단에서 상단으로 계산 ───────────────────────────────────
