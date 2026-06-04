@@ -19,6 +19,7 @@ import {
   listHistory,
   type CardPatch,
 } from "../services/cardNewsEditor";
+import { buildFigmaExport } from "../services/figmaExporter";
 
 export const cardNewsRoutes = Router();
 
@@ -252,6 +253,28 @@ cardNewsRoutes.post("/sets/:setId/cards/:cardIndex/image", async (req: Request, 
     const outputBase = path.resolve(process.cwd(), process.env["OUTPUT_DIR"] ?? "output");
     const relPath = path.relative(outputBase, localPath).replace(/\\/g, "/");
     res.json({ ok: true, imageUrl: "/output/" + relPath });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ── GET /api/cardnews/sets/:setId/figma ───────────────────────────────────────
+
+cardNewsRoutes.get("/sets/:setId/figma", (req: Request, res: Response) => {
+  const setId = String(req.params["setId"] ?? "");
+  if (!setId) { res.status(400).json({ error: "setId required" }); return; }
+
+  const deck = loadDeck(setId);
+  if (!deck) {
+    res.status(404).json({ error: "deck.json not found for this set" });
+    return;
+  }
+
+  try {
+    const figmaJson = buildFigmaExport(deck);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.json(figmaJson);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });

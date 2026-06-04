@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Helvetica Neue', sans-serif;
+    font-size: 13px;
+    padding: 16px;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  h2 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 12px; margin-bottom: 14px; line-height: 1.5; }
+  label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  input[type="text"] {
+    width: 100%; padding: 7px 10px;
+    border: 1px solid #ccc; border-radius: 5px;
+    font-size: 12px; outline: none;
+  }
+  input[type="text"]:focus { border-color: #007aff; }
+  .hint { font-size: 11px; color: #888; margin-top: 4px; }
+  .btn-row { display: flex; gap: 8px; margin-top: 14px; }
+  button {
+    padding: 8px 16px; border-radius: 5px; border: none;
+    cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .btn-primary { background: #007aff; color: #fff; flex: 1; }
+  .btn-primary:hover { background: #0069d9; }
+  .btn-primary:disabled { background: #99c4ff; cursor: not-allowed; }
+  .btn-secondary { background: #f0f0f0; color: #333; }
+  .btn-secondary:hover { background: #e0e0e0; }
+  #status-box {
+    margin-top: 14px; padding: 10px 12px;
+    border-radius: 6px; font-size: 12px; line-height: 1.6;
+    display: none;
+  }
+  #status-box.info { background: #eef4ff; color: #1a4a80; border: 1px solid #b3d0ff; }
+  #status-box.error { background: #fff0f0; color: #900; border: 1px solid #ffbaba; }
+  #status-box.success { background: #f0fff4; color: #1a6633; border: 1px solid #b3e6c8; }
+  .progress-wrap { margin-top: 10px; background: #e8e8e8; border-radius: 4px; height: 6px; display: none; }
+  .progress-bar { height: 100%; background: #007aff; border-radius: 4px; transition: width 0.2s; width: 0%; }
+  .step-list { margin-top: 10px; font-size: 11px; color: #555; display: none; }
+  .step-list li { padding: 2px 0; list-style: none; }
+  .step-list li::before { content: "• "; color: #007aff; }
+</style>
+</head>
+<body>
+  <h2>🎨 TY 카드뉴스 Importer</h2>
+  <p class="desc">카드뉴스 관리 서버의 Figma Export JSON URL을 입력하면<br>카드별 편집 가능한 Figma Frame이 생성됩니다.</p>
+
+  <label for="json-url">Figma Export JSON URL</label>
+  <input
+    type="text"
+    id="json-url"
+    placeholder="http://localhost:3000/api/cardnews/sets/{setId}/figma"
+  />
+  <div class="hint">서버의 "Figma URL 복사" 버튼으로 URL을 가져오세요.</div>
+
+  <div class="btn-row">
+    <button class="btn-primary" id="btn-import" onclick="startImport()">카드 생성하기</button>
+    <button class="btn-secondary" onclick="cancel()">취소</button>
+  </div>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+
+  <div id="status-box"></div>
+
+  <ul class="step-list" id="step-list"></ul>
+
+<script>
+// ── 상태 ──────────────────────────────────────────────────────────────────────
+
+let totalCards = 0;
+let loadedCards = 0;
+
+// ── UI 헬퍼 ───────────────────────────────────────────────────────────────────
+
+function showStatus(msg, type) {
+  const box = document.getElementById('status-box');
+  box.className = type || 'info';
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+function addStep(msg) {
+  const list = document.getElementById('step-list');
+  list.style.display = 'block';
+  const li = document.createElement('li');
+  li.textContent = msg;
+  list.appendChild(li);
+  list.scrollTop = list.scrollHeight;
+}
+
+function setProgress(value) {
+  const wrap = document.getElementById('progress-wrap');
+  const bar = document.getElementById('progress-bar');
+  wrap.style.display = 'block';
+  bar.style.width = Math.round(value) + '%';
+}
+
+function setButtonState(loading) {
+  const btn = document.getElementById('btn-import');
+  btn.disabled = loading;
+  btn.textContent = loading ? '생성 중...' : '카드 생성하기';
+}
+
+// ── 이미지 fetch ──────────────────────────────────────────────────────────────
+
+async function fetchImageBytes(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buffer = await res.arrayBuffer();
+    return Array.from(new Uint8Array(buffer));
+  } catch {
+    return null;
+  }
+}
+
+// ── 메인 임포트 ───────────────────────────────────────────────────────────────
+
+async function startImport() {
+  const urlInput = document.getElementById('json-url');
+  const url = urlInput.value.trim();
+  if (!url) {
+    showStatus('URL을 입력해주세요.', 'error');
+    return;
+  }
+
+  setButtonState(true);
+  document.getElementById('step-list').innerHTML = '';
+  document.getElementById('step-list').style.display = 'none';
+  setProgress(0);
+  showStatus('JSON 불러오는 중...', 'info');
+
+  // 1. JSON fetch
+  let exportData;
+  try {
+    addStep('Figma Export JSON 로드 중...');
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    exportData = await res.json();
+  } catch (err) {
+    showStatus('JSON 로드 실패: ' + err.message, 'error');
+    setButtonState(false);
+    return;
+  }
+
+  totalCards = exportData.cards.length;
+  loadedCards = 0;
+  addStep(`총 ${totalCards}장 카드 발견`);
+  setProgress(5);
+
+  // 2. 이미지 fetch (카드별 배경 이미지)
+  const imagesMap = {};
+  const imageLayers = [];
+
+  for (const card of exportData.cards) {
+    for (const layer of card.layers) {
+      if (layer.type === 'image' && layer.src) {
+        imageLayers.push({ key: `${card.cardIndex}-${layer.name}`, src: layer.src });
+      }
+    }
+  }
+
+  addStep(`이미지 ${imageLayers.length}개 로드 중...`);
+
+  for (let i = 0; i < imageLayers.length; i++) {
+    const { key, src } = imageLayers[i];
+    const bytes = await fetchImageBytes(src);
+    imagesMap[key] = bytes;
+
+    const loaded = bytes ? '✓' : '✕ (placeholder 사용)';
+    addStep(`이미지 ${i + 1}/${imageLayers.length} ${loaded}`);
+    setProgress(5 + (i + 1) / imageLayers.length * 30);
+  }
+
+  setProgress(35);
+  showStatus(`Figma Frame 생성 중...`, 'info');
+  addStep('Figma에 레이어 생성 중...');
+
+  // 3. plugin code.js로 전달
+  parent.postMessage(
+    { pluginMessage: { type: 'create-cards', exportData, imagesMap } },
+    '*'
+  );
+}
+
+function cancel() {
+  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+}
+
+// ── plugin → UI 메시지 수신 ───────────────────────────────────────────────────
+
+window.onmessage = (event) => {
+  const msg = event.data.pluginMessage;
+  if (!msg) return;
+
+  if (msg.type === 'progress') {
+    showStatus(msg.text, 'info');
+    addStep(msg.text);
+    loadedCards++;
+    if (totalCards > 0) {
+      setProgress(35 + (loadedCards / totalCards) * 60);
+    }
+  }
+
+  if (msg.type === 'done') {
+    setProgress(100);
+    showStatus(msg.text, 'success');
+    addStep(msg.text);
+    setButtonState(false);
+  }
+
+  if (msg.type === 'error') {
+    showStatus(msg.text, 'error');
+    addStep('오류: ' + msg.text);
+    setButtonState(false);
+  }
+};
+</script>
+</body>
+</html>

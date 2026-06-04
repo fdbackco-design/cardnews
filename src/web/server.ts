@@ -15,6 +15,12 @@ const PORT = parseInt(process.env["WEB_PORT"] ?? "3000", 10);
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
+// Figma 플러그인에서의 fetch 허용
+app.use((_req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
+});
+
 // ── 정적 파일 ─────────────────────────────────────────────────────────────────
 
 // 웹앱 static (public 폴더)

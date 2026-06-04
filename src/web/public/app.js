@@ -1336,5 +1336,35 @@ function showRebuildStatus(type, message) {
   }
 }
 
+/* ── Figma Export ──────────────────────────────────────────────────────────── */
+
+function getFigmaJsonUrl() {
+  const setId = state.detailSetId;
+  if (!setId) return null;
+  return `${window.location.origin}/api/cardnews/sets/${encodeURIComponent(setId)}/figma`;
+}
+
+function openFigmaJson() {
+  const url = getFigmaJsonUrl();
+  if (!url) { alert('먼저 카드뉴스 세트를 선택하세요.'); return; }
+  window.open(url, '_blank');
+}
+
+async function copyFigmaJsonUrl() {
+  const url = getFigmaJsonUrl();
+  if (!url) { alert('먼저 카드뉴스 세트를 선택하세요.'); return; }
+  try {
+    await navigator.clipboard.writeText(url);
+    const btn = document.getElementById('detail-figma-copy-btn');
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = '✅ 복사됨';
+      setTimeout(() => { btn.textContent = original; }, 1800);
+    }
+  } catch {
+    prompt('아래 URL을 복사하세요:', url);
+  }
+}
+
 /* ── Init ──────────────────────────────────────────────────────────────────── */
 navigateTo('health');
