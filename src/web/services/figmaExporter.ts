@@ -276,8 +276,8 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
 
   // 브랜드 로고 이미지 (하단 중앙 고정 — CSS: height:22px, opacity:0.62)
   // Figma 카드는 1080px 기준이지만 로고는 PNG 출력(2x)에 맞춰 44px로 렌더링
-  const logoH = 44;
-  const logoW = Math.round(787 / 72 * logoH); // 787×72 원본, 비례 너비 ≈ 481
+  const logoH = 22;
+  const logoW = Math.round(787 / 72 * logoH); // 787×72 원본, 비례 너비 ≈ 240
   layers.push({
     type: "image", name: "브랜드 로고",
     src: BRAND_LOGO_SRC,
