@@ -175,28 +175,41 @@ function stripMarkup(text: string): string {
 
 // ── 표지 카드 레이어 빌더 ─────────────────────────────────────────────────────
 
-// 표지 오버레이 그라데이션 스탑 (CSS rgba(234,86,53))
-const COVER_ORANGE_STOPS: GradientStop[] = [
+// 표지 오버레이 그라데이션 — 항상 ttb(위→아래) 방향 사용, stop 위치로 상/하 결정
+// cover-top  (CSS 180deg): 위쪽이 진하고 중간에서 투명
+const COVER_ORANGE_STOPS_TOP: GradientStop[] = [
   { position: 0.00, r: 0.918, g: 0.337, b: 0.208, a: 0.95 },
   { position: 0.14, r: 0.918, g: 0.337, b: 0.208, a: 0.70 },
   { position: 0.28, r: 0.918, g: 0.337, b: 0.208, a: 0.35 },
   { position: 0.50, r: 0.918, g: 0.337, b: 0.208, a: 0.00 },
 ];
+// cover-bottom (CSS 0deg): 아래쪽이 진하고 중간에서 투명 (stop 위치를 1-x 로 미러링)
+const COVER_ORANGE_STOPS_BOTTOM: GradientStop[] = [
+  { position: 0.50, r: 0.918, g: 0.337, b: 0.208, a: 0.00 },
+  { position: 0.72, r: 0.918, g: 0.337, b: 0.208, a: 0.35 },
+  { position: 0.86, r: 0.918, g: 0.337, b: 0.208, a: 0.70 },
+  { position: 1.00, r: 0.918, g: 0.337, b: 0.208, a: 0.95 },
+];
 
 // 내용 카드 3중 비네팅 그라데이션 (CSS 3개 레이어 근사)
 const CONTENT_VIGNETTE_GRADIENTS: GradientFill[] = [
+  // 상단 비네팅: 카드 상단 25%까지만 어둡게 (기존 58%는 이미지 전체를 어둡게 만듦)
   { direction: "ttb", stops: [
-    { position: 0.00, r: 0, g: 0, b: 0, a: 0.62 },
-    { position: 0.18, r: 0, g: 0, b: 0, a: 0.30 },
-    { position: 0.42, r: 0, g: 0, b: 0, a: 0.04 },
-    { position: 0.58, r: 0, g: 0, b: 0, a: 0.00 },
+    { position: 0.00, r: 0, g: 0, b: 0, a: 0.55 },
+    { position: 0.09, r: 0, g: 0, b: 0, a: 0.25 },
+    { position: 0.18, r: 0, g: 0, b: 0, a: 0.05 },
+    { position: 0.25, r: 0, g: 0, b: 0, a: 0.00 },
   ]},
-  { direction: "btt", stops: [
-    { position: 0.00, r: 0, g: 0, b: 0, a: 0.82 },
-    { position: 0.18, r: 0, g: 0, b: 0, a: 0.60 },
-    { position: 0.42, r: 0, g: 0, b: 0, a: 0.22 },
-    { position: 0.62, r: 0, g: 0, b: 0, a: 0.00 },
+  // 하단 비네팅: btt 렌더링 문제(상단 고정) 우회 → ttb + stop 미러링
+  // 원본 btt stops (아래→위): 0.00→0.82, 0.18→0.60, 0.42→0.22, 0.62→0.00
+  // 미러링 (1-pos): 0.38→0.00, 0.58→0.22, 0.82→0.60, 1.00→0.82
+  { direction: "ttb", stops: [
+    { position: 0.38, r: 0, g: 0, b: 0, a: 0.00 },
+    { position: 0.58, r: 0, g: 0, b: 0, a: 0.22 },
+    { position: 0.82, r: 0, g: 0, b: 0, a: 0.60 },
+    { position: 1.00, r: 0, g: 0, b: 0, a: 0.82 },
   ]},
+  // 좌측 비네팅
   { direction: "ltr", stops: [
     { position: 0.00, r: 0, g: 0, b: 0, a: 0.32 },
     { position: 0.48, r: 0, g: 0, b: 0, a: 0.12 },
@@ -216,11 +229,12 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
     x: 0, y: 0, width: CARD_W, height: CARD_H,
   });
 
-  // 표지 그라데이션 오버레이 (CSS: 180deg/0deg orange gradient)
+  // 표지 그라데이션 오버레이 — 항상 ttb 방향, stop 위치로 상/하 결정
+  // (btt 방향은 Figma에서 ttb와 동일하게 렌더링되는 문제가 있어 stops 미러링으로 대체)
   layers.push({
     type: "gradient", name: "표지 그라데이션 오버레이",
     x: 0, y: 0, width: CARD_W, height: CARD_H,
-    gradients: [{ direction: isTop ? "ttb" : "btt", stops: COVER_ORANGE_STOPS }],
+    gradients: [{ direction: "ttb", stops: isTop ? COVER_ORANGE_STOPS_TOP : COVER_ORANGE_STOPS_BOTTOM }],
   });
 
   // ── CSS 레이아웃 상수 (웹 렌더링 기준) ────────────────────────────────────
