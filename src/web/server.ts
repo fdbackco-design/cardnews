@@ -7,6 +7,7 @@ import * as path from "path";
 import { cardNewsRoutes } from "./routes/cardNewsRoutes";
 import { instagramRoutes } from "./routes/instagramRoutes";
 import { authRoutes } from "./routes/authRoutes";
+import { figmaRoutes } from "./routes/figmaRoutes";
 import { requireAuth } from "./middleware/requireAuth";
 
 const app = express();
@@ -36,6 +37,9 @@ app.use("/output", express.static(OUTPUT_DIR));
 
 // 인증 라우트 (로그인 불필요)
 app.use("/api/auth", authRoutes);
+
+// Figma Export 라우트 (일반 세션 인증 없음, 자체 토큰 인증)
+app.use("/api/figma", figmaRoutes);
 
 // 보호된 라우트 (로그인 필요)
 app.use("/api/cardnews", requireAuth, cardNewsRoutes);

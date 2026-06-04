@@ -1449,31 +1449,45 @@ function showRebuildStatus(type, message) {
 
 /* ── Figma Export ──────────────────────────────────────────────────────────── */
 
-function getFigmaJsonUrl() {
-  const setId = state.detailSetId;
-  if (!setId) return null;
-  return `${window.location.origin}/api/cardnews/sets/${encodeURIComponent(setId)}/figma`;
+async function fetchFigmaExportUrl(setId) {
+  // 서버에서 token 포함 URL을 받아옴 (토큰이 JS에 노출되지 않도록)
+  const data = await api.get(`/api/figma/sets/${encodeURIComponent(setId)}/export-url`);
+  return data.url;
 }
 
-function openFigmaJson() {
-  const url = getFigmaJsonUrl();
-  if (!url) { alert('먼저 카드뉴스 세트를 선택하세요.'); return; }
-  window.open(url, '_blank');
+async function openFigmaJson() {
+  const setId = state.detailSetId;
+  if (!setId) { alert('먼저 카드뉴스 세트를 선택하세요.'); return; }
+  try {
+    const url = await fetchFigmaExportUrl(setId);
+    window.open(url, '_blank');
+  } catch (err) {
+    alert('URL 생성 실패: ' + err.message);
+  }
 }
 
 async function copyFigmaJsonUrl() {
-  const url = getFigmaJsonUrl();
-  if (!url) { alert('먼저 카드뉴스 세트를 선택하세요.'); return; }
+  const setId = state.detailSetId;
+  if (!setId) { alert('먼저 카드뉴스 세트를 선택하세요.'); return; }
+  const btn = document.getElementById('detail-figma-copy-btn');
+  const original = btn ? btn.textContent : '';
   try {
+    if (btn) btn.textContent = '⏳...';
+    const url = await fetchFigmaExportUrl(setId);
     await navigator.clipboard.writeText(url);
-    const btn = document.getElementById('detail-figma-copy-btn');
     if (btn) {
-      const original = btn.textContent;
       btn.textContent = '✅ 복사됨';
       setTimeout(() => { btn.textContent = original; }, 1800);
     }
-  } catch {
-    prompt('아래 URL을 복사하세요:', url);
+  } catch (err) {
+    if (btn) btn.textContent = original;
+    // clipboard API 미지원 시 fallback
+    try {
+      const url = await fetchFigmaExportUrl(setId);
+      prompt('아래 URL을 복사하세요 (Ctrl+C):', url);
+    } catch (e) {
+      alert('URL 복사 실패: ' + err.message);
+    }
   }
 }
 

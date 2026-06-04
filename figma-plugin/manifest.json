@@ -6,7 +6,9 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["*"],
-    "reasoning": "The plugin needs to fetch cardnews JSON and image assets from the user's local NAS server or configured public asset server."
+    "allowedDomains": [
+      "https://cardnews.tylifepartners.com"
+    ],
+    "reasoning": "The plugin needs to fetch cardnews JSON and image assets from the TY Life Partners cardnews server."
   }
 }

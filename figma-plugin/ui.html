@@ -57,6 +57,7 @@
     placeholder="http://localhost:3000/api/cardnews/sets/{setId}/figma"
   />
   <div class="hint">서버의 "Figma URL 복사" 버튼으로 URL을 가져오세요.</div>
+  <div class="hint" style="margin-top:6px;color:#c0392b">401 Unauthorized가 발생하면 token이 포함된 Figma URL을 사용하세요.<br>예) https://…/api/figma/sets/{setId}?token=xxxxx</div>
 
   <div class="btn-row">
     <button class="btn-primary" id="btn-import" onclick="startImport()">카드 생성하기</button>
