@@ -13,6 +13,7 @@ import { ensureOutputDirs, timestampedSlug, writeTextFile } from "../../utils/fs
 import { pickNextUnprocessedItem } from "../../services/contentSelector";
 import { markProcessed } from "../../services/processedContentRegistry";
 import { buildImageAuditReport } from "../../validation/imageAuditReport";
+import { saveBackgroundImages } from "./backgroundSaver";
 import type { KdcaContent } from "../../types/cardnews";
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
@@ -348,12 +349,22 @@ async function runPipeline(job: CardNewsJob): Promise<void> {
 
   // ── Step 6: 결과 저장 ─────────────────────────────────────────────────────
 
-  startStep(job, 6, "deck.json 및 batch-report 저장 중...");
+  startStep(job, 6, "deck.json 및 배경 이미지 저장 중...");
   let batchReportPath: string | undefined;
   const setId = path.basename(outputDir);
   try {
+    // 배경 이미지 저장 (Figma 플러그인 용, 실패 시 무시)
+    let deckToSave = deck;
+    try {
+      deckToSave = await saveBackgroundImages(deck, outputDir);
+      addLog(job, `배경 이미지 저장 완료`);
+    } catch (bgErr) {
+      const bgMsg = bgErr instanceof Error ? bgErr.message : String(bgErr);
+      addLog(job, `[배경 이미지 경고] ${bgMsg}`);
+    }
+
     const deckJson = {
-      ...deck,
+      ...deckToSave,
       _webMeta: {
         setId,
         source: input.mode,

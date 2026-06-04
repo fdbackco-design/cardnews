@@ -82,6 +82,28 @@ interface AssetUploaderProvider {
 
 // ── 메인 진입점 ──────────────────────────────────────────────────────────────
 
+export type BackgroundUploadParams = {
+  setId: string;
+  bgPaths: string[];
+};
+
+/**
+ * 배경 이미지를 R2에 업로드한다.
+ * key 형식: cardnews/{setId}/backgrounds/{filename}
+ * R2 미설정 시 빈 배열 반환 (비차단).
+ */
+export async function uploadBackgroundImages(
+  params: BackgroundUploadParams
+): Promise<UploadedAsset[]> {
+  const status = getProviderConfigStatus();
+  if (!status.configured || status.provider !== "r2") return [];
+
+  if (!params.setId || !params.bgPaths.length) return [];
+
+  const uploader = new R2Uploader();
+  return uploader.uploadWithPrefix(params.setId, params.bgPaths, "backgrounds");
+}
+
 export async function uploadImagesForInstagram(
   params: UploadParams
 ): Promise<UploadedAsset[]> {
@@ -156,7 +178,7 @@ class LocalPlaceholderUploader implements AssetUploaderProvider {
 class R2Uploader implements AssetUploaderProvider {
   readonly name: PublicAssetProvider = "r2";
 
-  async upload(params: UploadParams): Promise<UploadedAsset[]> {
+  private makeClient(): { client: S3Client; bucket: string; baseUrl: string } {
     const accountId = (process.env["R2_ACCOUNT_ID"] ?? "").trim();
     const accessKeyId = (process.env["R2_ACCESS_KEY_ID"] ?? "").trim();
     const secretAccessKey = (process.env["R2_SECRET_ACCESS_KEY"] ?? "").trim();
@@ -173,11 +195,44 @@ class R2Uploader implements AssetUploaderProvider {
       credentials: { accessKeyId, secretAccessKey },
     });
 
+    return { client, bucket, baseUrl };
+  }
+
+  async upload(params: UploadParams): Promise<UploadedAsset[]> {
+    const { client, bucket, baseUrl } = this.makeClient();
+
     const results: UploadedAsset[] = [];
     for (const localPath of params.imagePaths) {
       const abs = resolveLocalPath(localPath);
       const filename = path.basename(abs);
       const key = `cardnews/${params.setId}/${filename}`;
+      const body = fs.readFileSync(abs);
+
+      await client.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: "image/png",
+      }));
+
+      console.log(`[R2] 업로드: ${key}`);
+      const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+      results.push({ localPath: abs, publicUrl: `${baseUrl}/${encodedKey}` });
+    }
+
+    return results;
+  }
+
+  async uploadWithPrefix(setId: string, localPaths: string[], prefix: string): Promise<UploadedAsset[]> {
+    const { client, bucket, baseUrl } = this.makeClient();
+
+    const results: UploadedAsset[] = [];
+    for (const localPath of localPaths) {
+      const abs = path.isAbsolute(localPath) ? localPath : path.resolve(process.cwd(), localPath);
+      if (!fs.existsSync(abs)) continue;
+
+      const filename = path.basename(abs);
+      const key = `cardnews/${setId}/${prefix}/${filename}`;
       const body = fs.readFileSync(abs);
 
       await client.send(new PutObjectCommand({

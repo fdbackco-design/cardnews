@@ -2,6 +2,56 @@ import { fileURLToPath } from "url";
 import * as path from "path";
 import type { CardNewsSet, CoverCard, ContentCard } from "../../types/cardnews";
 
+// ── 배경 이미지 URL 해석 ──────────────────────────────────────────────────────
+
+function resolveBgSrc(
+  card: CoverCard | ContentCard,
+  baseUrl: string | undefined
+): string {
+  // R2 공개 URL (Instagram 업로드 후 설정됨)
+  if (card.bgImageUrl) return card.bgImageUrl;
+
+  // 로컬 저장 배경 이미지 → 웹 서버를 통해 절대 URL로 서빙
+  if (card.bgLocalPath && baseUrl) {
+    const outputBase = path.resolve(process.cwd(), process.env["OUTPUT_DIR"] ?? "output");
+    try {
+      const rel = path.relative(outputBase, card.bgLocalPath).replace(/\\/g, "/");
+      const encoded = rel.split("/").map(encodeURIComponent).join("/");
+      return `${baseUrl}/output/${encoded}`;
+    } catch {
+      // fall through
+    }
+  }
+
+  // Pexels 등 HTTPS 이미지 — 직접 사용
+  if (card.imageUrl && (card.imageUrl.startsWith("https://") || card.imageUrl.startsWith("http://"))) {
+    return card.imageUrl;
+  }
+
+  // Gemini file:// → 웹 서버 절대 URL로 변환
+  if (card.imageUrl && card.imageUrl.startsWith("file://") && baseUrl) {
+    try {
+      const localPath = fileURLToPath(card.imageUrl);
+      const outputBase = path.resolve(process.cwd(), process.env["OUTPUT_DIR"] ?? "output");
+      const genDir = path.resolve(process.cwd(), "output", "generated-images");
+      let relPath: string;
+      if (localPath.startsWith(genDir)) {
+        relPath = "generated-images/" + path.relative(genDir, localPath).replace(/\\/g, "/");
+      } else if (localPath.startsWith(outputBase)) {
+        relPath = path.relative(outputBase, localPath).replace(/\\/g, "/");
+      } else {
+        return "";
+      }
+      const encoded = relPath.split("/").map(encodeURIComponent).join("/");
+      return `${baseUrl}/output/${encoded}`;
+    } catch {
+      return "";
+    }
+  }
+
+  return resolveImageSrc(card.imageUrl);
+}
+
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
 const CARD_W = 1080;
@@ -93,13 +143,13 @@ function stripMarkup(text: string): string {
 
 // ── 표지 카드 레이어 빌더 ─────────────────────────────────────────────────────
 
-function buildCoverLayers(cover: CoverCard): FigmaLayer[] {
+function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaLayer[] {
   const layers: FigmaLayer[] = [];
 
   // 배경 이미지
   layers.push({
     type: "image", name: "배경 이미지",
-    src: resolveImageSrc(cover.imageUrl),
+    src: resolveBgSrc(cover, baseUrl),
     x: 0, y: 0, width: CARD_W, height: CARD_H,
   });
 
@@ -230,13 +280,13 @@ function buildCoverLayers(cover: CoverCard): FigmaLayer[] {
 
 // ── 내용 카드 레이어 빌더 ─────────────────────────────────────────────────────
 
-function buildContentLayers(card: ContentCard, displayIndex: number): FigmaLayer[] {
+function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: string | undefined): FigmaLayer[] {
   const layers: FigmaLayer[] = [];
 
   // 배경 이미지
   layers.push({
     type: "image", name: "배경 이미지",
-    src: resolveImageSrc(card.imageUrl),
+    src: resolveBgSrc(card, baseUrl),
     x: 0, y: 0, width: CARD_W, height: CARD_H,
   });
 
@@ -418,7 +468,7 @@ function buildContentLayers(card: ContentCard, displayIndex: number): FigmaLayer
 
 // ── 메인 변환 함수 ────────────────────────────────────────────────────────────
 
-export function buildFigmaExport(deck: CardNewsSet): FigmaExportJson {
+export function buildFigmaExport(deck: CardNewsSet, baseUrl?: string): FigmaExportJson {
   const cards: FigmaCard[] = [];
 
   cards.push({
@@ -426,7 +476,7 @@ export function buildFigmaExport(deck: CardNewsSet): FigmaExportJson {
     name: "00_cover",
     width: CARD_W,
     height: CARD_H,
-    layers: buildCoverLayers(deck.cover),
+    layers: buildCoverLayers(deck.cover, baseUrl),
   });
 
   deck.cards.forEach((card, i) => {
@@ -435,7 +485,7 @@ export function buildFigmaExport(deck: CardNewsSet): FigmaExportJson {
       name: `${String(i + 1).padStart(2, "0")}_card`,
       width: CARD_W,
       height: CARD_H,
-      layers: buildContentLayers(card, i + 1),
+      layers: buildContentLayers(card, i + 1, baseUrl),
     });
   });
 

@@ -48,7 +48,7 @@ figmaRoutes.get("/sets/:setId", (req: Request, res: Response) => {
   }
 
   try {
-    const figmaJson = buildFigmaExport(deck);
+    const figmaJson = buildFigmaExport(deck, getPublicBaseUrl(req));
     res.json(figmaJson);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -5,11 +5,13 @@ import { generateDraft } from "../services/instagramDraft";
 import {
   getProviderConfigStatus,
   uploadImagesForInstagram,
+  uploadBackgroundImages,
 } from "../../services/storage/publicAssetUploader";
 import {
   publishInstagramCarousel,
   type PublishResult,
 } from "../../services/instagram/instagramPublisher";
+import { loadDeck, saveDeck } from "../services/cardNewsEditor";
 import { writeTextFile } from "../../utils/fs";
 
 export const instagramRoutes = Router();
@@ -121,6 +123,30 @@ instagramRoutes.post("/upload", async (req: Request, res: Response) => {
     publicAssets = await uploadImagesForInstagram({ setId, imagePaths });
     const imageUrls = publicAssets.map((a) => a.publicUrl);
     console.log(`[Instagram] 공개 URL ${imageUrls.length}개 확보`);
+
+    // 2-b) 배경 이미지 R2 업로드 + deck.json에 bgImageUrl 저장 (Figma용, 실패 시 무시)
+    try {
+      const deck = loadDeck(setId);
+      if (deck) {
+        const bgEntries: Array<{ card: typeof deck.cover | (typeof deck.cards)[number]; path: string }> = [];
+        if (deck.cover.bgLocalPath) bgEntries.push({ card: deck.cover, path: deck.cover.bgLocalPath });
+        deck.cards.forEach((card) => {
+          if (card.bgLocalPath) bgEntries.push({ card, path: card.bgLocalPath });
+        });
+
+        if (bgEntries.length > 0) {
+          const bgAssets = await uploadBackgroundImages({ setId, bgPaths: bgEntries.map((e) => e.path) });
+          bgAssets.forEach((asset, i) => {
+            bgEntries[i]!.card.bgImageUrl = asset.publicUrl;
+          });
+          saveDeck(setId, deck);
+          console.log(`[Instagram] 배경 이미지 R2 업로드 완료 (${bgAssets.length}개)`);
+        }
+      }
+    } catch (bgErr) {
+      const bgMsg = bgErr instanceof Error ? bgErr.message : String(bgErr);
+      console.warn(`[Instagram] 배경 이미지 업로드 건너뜀: ${bgMsg}`);
+    }
 
     // 3) Carousel 게시
     publishResult = await publishInstagramCarousel({

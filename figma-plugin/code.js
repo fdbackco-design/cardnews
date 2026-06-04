@@ -3,12 +3,6 @@ figma.showUI(__html__, { width: 460, height: 480, title: "TY 카드뉴스 Import
 
 // ── 폰트 로드 ─────────────────────────────────────────────────────────────────
 
-// Figma에서 사용 가능한 폰트 패밀리로 매핑
-const FONT_MAP = {
-  "Pretendard": ["Noto Sans KR", "Inter"],
-  "BMKkubulim": ["Noto Sans KR", "Inter"],
-};
-
 // 폰트 무게 → Figma 스타일 이름
 function weightToStyle(weight) {
   if (weight <= 300) return "Light";
@@ -19,28 +13,72 @@ function weightToStyle(weight) {
   return "Bold";
 }
 
-async function loadFont(family, weight) {
+// "라이프 가이드" 시리즈 레이블 레이어 판별
+function isSeriesLabelLayer(layer) {
+  if (layer.id === "series_label") return true;
+  if (layer.name && (layer.name.indexOf("라이프") !== -1 || layer.name.indexOf("가이드") !== -1)) return true;
+  if (layer.text && (layer.text.indexOf("라이프 가이드") !== -1 || layer.text.indexOf("LIFE GUIDE") !== -1)) return true;
+  return false;
+}
+
+// 후보 폰트 목록을 순서대로 시도, 첫 번째 후보가 primaryFamily
+// returns { family, style, isFallback }
+async function loadFontCandidates(candidates, weight, primaryFamily) {
   var style = weightToStyle(weight);
-  var fallbacks = FONT_MAP[family] || [];
-  var candidates = [family].concat(fallbacks);
+
   for (var i = 0; i < candidates.length; i++) {
     var candidate = candidates[i];
+    console.log("[font] trying", candidate, style);
     try {
       await figma.loadFontAsync({ family: candidate, style: style });
-      return { family: candidate, style: style };
+      console.log("[font] loaded", candidate, style);
+      return { family: candidate, style: style, isFallback: candidate !== primaryFamily };
     } catch (err) {
-      // 해당 weight 스타일이 없으면 Regular 시도
+      console.warn("[font] failed", candidate, style, String(err));
+    }
+
+    // weight 스타일 실패 시 Regular 재시도
+    if (style !== "Regular") {
+      console.log("[font] trying", candidate, "Regular");
       try {
         await figma.loadFontAsync({ family: candidate, style: "Regular" });
-        return { family: candidate, style: "Regular" };
+        console.log("[font] loaded", candidate, "Regular");
+        return { family: candidate, style: "Regular", isFallback: candidate !== primaryFamily };
       } catch (err2) {
-        continue;
+        console.warn("[font] failed", candidate, "Regular", String(err2));
       }
     }
   }
-  // 최후 폴백
+
+  // 절대 최후 폴백
+  console.warn("[font] all candidates failed, falling back to Inter Regular");
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
-  return { family: "Inter", style: "Regular" };
+  return { family: "Inter", style: "Regular", isFallback: true };
+}
+
+// "라이프 가이드" 전용: BM kkubulim 1순위
+var SERIES_LABEL_CANDIDATES = [
+  "BM kkubulim",
+  "BM Kkubulim",
+  "BMKkubulim",
+  "배달의민족 꾸불림",
+  "Noto Sans KR",
+  "Inter",
+];
+
+async function loadSeriesLabelFont(weight) {
+  return loadFontCandidates(SERIES_LABEL_CANDIDATES, weight, "BM kkubulim");
+}
+
+// 일반 텍스트용: Pretendard → Noto Sans KR → Inter
+var FONT_FALLBACKS = {
+  "Pretendard": ["Noto Sans KR", "Inter"],
+};
+
+async function loadFont(family, weight) {
+  var fallbacks = FONT_FALLBACKS[family] || ["Noto Sans KR", "Inter"];
+  var candidates = [family].concat(fallbacks);
+  return loadFontCandidates(candidates, weight, family);
 }
 
 // ── 색상 파싱 ─────────────────────────────────────────────────────────────────
@@ -127,12 +165,20 @@ async function createShapeLayer(layer) {
 
 async function createTextLayer(layer) {
   const node = figma.createText();
-  node.name = layer.name;
   node.x = layer.x;
   node.y = layer.y;
 
-  const fontName = await loadFont(layer.fontFamily, layer.fontWeight);
-  node.fontName = fontName;
+  var fontResult;
+  if (isSeriesLabelLayer(layer)) {
+    console.log("[font] series-label layer detected:", layer.name);
+    fontResult = await loadSeriesLabelFont(layer.fontWeight);
+  } else {
+    fontResult = await loadFont(layer.fontFamily, layer.fontWeight);
+  }
+
+  node.fontName = { family: fontResult.family, style: fontResult.style };
+  node.name = fontResult.isFallback ? layer.name + " [폰트 대체됨]" : layer.name;
+
   node.fontSize = layer.fontSize;
   node.lineHeight = { unit: "PIXELS", value: layer.lineHeight };
   node.textAutoResize = "HEIGHT";

@@ -24,6 +24,8 @@ export type CoverCard = {
   subtitle?: string;
   imageQuery: string;
   imageUrl?: string;
+  bgLocalPath?: string;  // 텍스트 없는 배경 이미지 로컬 경로
+  bgImageUrl?: string;   // R2 업로드 후 공개 URL
 };
 
 // ── 내용 카드 ────────────────────────────────────────────────────────────
@@ -38,6 +40,8 @@ export type ContentCard = {
   outro?: string;
   imageQuery: string;
   imageUrl?: string;
+  bgLocalPath?: string;  // 텍스트 없는 배경 이미지 로컬 경로
+  bgImageUrl?: string;   // R2 업로드 후 공개 URL
 };
 
 // ── 질병관리청 원문 데이터 ───────────────────────────────────────────────
