@@ -135,10 +135,13 @@ async function createImageLayer(layer, imageBytes) {
       var img = figma.createImage(new Uint8Array(imageBytes));
       node.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: img.hash }];
     } catch (err) {
+      console.error("[image fetch failed]", layer.name, layer.src || "(no src)", String(err));
+      node.name = "이미지 로드 실패: " + layer.name + (layer.src ? " - " + layer.src : "");
       node.fills = [{ type: "SOLID", color: { r: 0.8, g: 0.8, b: 0.8 } }];
     }
   } else {
-    // placeholder: 회색
+    console.error("[image fetch failed]", layer.name, layer.src || "(no src)", "bytes not received");
+    node.name = "이미지 로드 실패: " + layer.name + (layer.src ? " - " + layer.src : "");
     node.fills = [{ type: "SOLID", color: { r: 0.8, g: 0.8, b: 0.8 } }];
   }
 

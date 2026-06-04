@@ -7,7 +7,8 @@
   "editorType": ["figma"],
   "networkAccess": {
     "allowedDomains": [
-      "https://cardnews.tylifepartners.com"
+      "https://cardnews.tylifepartners.com",
+      "https://pub-9d773a8e8759461eab92383610baddf2.r2.dev"
     ],
     "reasoning": "The plugin needs to fetch cardnews JSON and image assets from the TY Life Partners cardnews server."
   }

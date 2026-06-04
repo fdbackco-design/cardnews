@@ -115,10 +115,14 @@ async function fetchImageBytes(url) {
   if (!url) return null;
   try {
     var res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error('[image fetch failed]', url, 'HTTP ' + res.status + ' ' + res.statusText);
+      return null;
+    }
     var buffer = await res.arrayBuffer();
     return Array.from(new Uint8Array(buffer));
   } catch (err) {
+    console.error('[image fetch failed]', url, err.message || String(err));
     return null;
   }
 }
@@ -176,8 +180,11 @@ async function startImport() {
     const bytes = await fetchImageBytes(src);
     imagesMap[key] = bytes;
 
-    const loaded = bytes ? '✓' : '✕ (placeholder 사용)';
-    addStep(`이미지 ${i + 1}/${imageLayers.length} ${loaded}`);
+    if (bytes) {
+      addStep(`이미지 ${i + 1}/${imageLayers.length} ✓ ${key}`);
+    } else {
+      addStep(`이미지 ${i + 1}/${imageLayers.length} ✕ 로드 실패 — ${src}`);
+    }
     setProgress(5 + (i + 1) / imageLayers.length * 30);
   }
 
