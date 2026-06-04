@@ -58,7 +58,6 @@ const CARD_W = 1080;
 const CARD_H = 1350;
 const PAD_X = 80;
 const CONTENT_W = 900;  // CARD_W - PAD_X*2 = 920, but CSS uses max-width:900
-const BRAND_NAME = "TY Life Partners";
 
 // CSS pt → px (96dpi: 1pt = 4/3 px)
 function pt(n: number): number {
@@ -72,6 +71,7 @@ export type FigmaImageLayer = {
   name: string;
   src: string;
   x: number; y: number; width: number; height: number;
+  opacity?: number;
 };
 
 export type FigmaTextLayer = {
@@ -209,117 +209,68 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
     gradients: [{ direction: isTop ? "ttb" : "btt", stops: COVER_ORANGE_STOPS }],
   });
 
-  if (isTop) {
-    // 텍스트 상단 배치 (padding-top: 120px)
-    let y = 120;
+  // 구분선 고정 좌표 (x, width, height 공통 / y는 variant별)
+  const RULE_X = 83;
+  const RULE_W = 806;
+  const RULE_H = 3;
+  const ruleY = isTop ? 182 : 928;
 
-    const labelH = pt(34) + 10;
+  const labelH = pt(34) + 10;
+  const titleLineH = pt(100);
+  const titleH = cover.titleLines.length * titleLineH + 10;
+
+  // 라이프 가이드 레이블 — 구분선 위 8px
+  const labelY = ruleY - 8 - labelH;
+  layers.push({
+    type: "text", name: "라이프 가이드 레이블",
+    text: cover.label,
+    x: PAD_X, y: labelY, width: 500, height: labelH,
+    fontFamily: "BMKkubulim", fontSize: pt(34), fontWeight: 400,
+    lineHeight: Math.round(pt(34) * 1.2),
+    color: "rgba(255,255,255,0.92)", align: "left",
+  });
+
+  // 구분선
+  layers.push({
+    type: "shape", name: "구분선",
+    x: RULE_X, y: ruleY, width: RULE_W, height: RULE_H,
+    fill: "#FFFFFF", opacity: 0.95,
+  });
+
+  // 표지 제목 — 구분선 아래 36px
+  const titleY = ruleY + RULE_H + 36;
+  layers.push({
+    type: "text", name: "제목",
+    text: cover.titleLines.join("\n"),
+    x: PAD_X, y: titleY, width: CARD_W - PAD_X * 2, height: titleH,
+    fontFamily: "Pretendard", fontSize: pt(82), fontWeight: 500,
+    lineHeight: titleLineH,
+    color: "#FFFFFF", align: "left",
+  });
+
+  // 부제 — 제목 아래 22px
+  if (cover.subtitle) {
     layers.push({
-      type: "text", name: "라이프 가이드 레이블",
-      text: cover.label,
-      x: PAD_X, y, width: 500, height: labelH,
-      fontFamily: "BMKkubulim", fontSize: pt(34), fontWeight: 400,
-      lineHeight: Math.round(pt(34) * 1.2),
-      color: "rgba(255,255,255,0.92)", align: "left",
-    });
-    y += labelH + 8;
-
-    // 구분선
-    const ruleW = Math.round(CARD_W * 0.88);
-    layers.push({
-      type: "shape", name: "구분선",
-      x: PAD_X, y, width: ruleW, height: 4,
-      fill: "#FFFFFF", opacity: 0.95,
-    });
-    y += 4 + 36;
-
-    // 표지 제목
-    const titleLineH = pt(100);
-    const titleH = cover.titleLines.length * titleLineH + 10;
-    layers.push({
-      type: "text", name: "제목",
-      text: cover.titleLines.join("\n"),
-      x: PAD_X, y, width: CARD_W - PAD_X * 2, height: titleH,
-      fontFamily: "Pretendard", fontSize: pt(82), fontWeight: 500,
-      lineHeight: titleLineH,
-      color: "#FFFFFF", align: "left",
-    });
-    y += titleH + 22;
-
-    // 부제
-    if (cover.subtitle) {
-      layers.push({
-        type: "text", name: "부제",
-        text: cover.subtitle,
-        x: PAD_X, y, width: CARD_W - PAD_X * 2, height: pt(38) * 2 + 10,
-        fontFamily: "Pretendard", fontSize: pt(38), fontWeight: 400,
-        lineHeight: Math.round(pt(38) * 1.30),
-        color: "rgba(255,255,255,0.82)", align: "left",
-      });
-    }
-  } else {
-    // 텍스트 하단 배치 (padding-bottom: 220px)
-    const PAD_BOTTOM = 220;
-    let y = CARD_H - PAD_BOTTOM;
-
-    if (cover.subtitle) {
-      const subH = pt(38) * 2 + 10;
-      y -= subH;
-      layers.push({
-        type: "text", name: "부제",
-        text: cover.subtitle,
-        x: PAD_X, y, width: CARD_W - PAD_X * 2, height: subH,
-        fontFamily: "Pretendard", fontSize: pt(38), fontWeight: 400,
-        lineHeight: Math.round(pt(38) * 1.30),
-        color: "rgba(255,255,255,0.82)", align: "left",
-      });
-      y -= 22;
-    }
-
-    const titleLineH = pt(100);
-    const titleH = cover.titleLines.length * titleLineH + 10;
-    y -= titleH;
-    layers.push({
-      type: "text", name: "제목",
-      text: cover.titleLines.join("\n"),
-      x: PAD_X, y, width: CARD_W - PAD_X * 2, height: titleH,
-      fontFamily: "Pretendard", fontSize: pt(82), fontWeight: 500,
-      lineHeight: titleLineH,
-      color: "#FFFFFF", align: "left",
-    });
-    y -= 36;
-
-    const ruleW = Math.round(CARD_W * 0.88);
-    layers.push({
-      type: "shape", name: "구분선",
-      x: PAD_X, y: y - 4, width: ruleW, height: 4,
-      fill: "#FFFFFF", opacity: 0.95,
-    });
-    y -= 12;
-
-    const labelH = pt(34) + 10;
-    layers.push({
-      type: "text", name: "라이프 가이드 레이블",
-      text: cover.label,
-      x: PAD_X, y: y - labelH, width: 500, height: labelH,
-      fontFamily: "BMKkubulim", fontSize: pt(34), fontWeight: 400,
-      lineHeight: Math.round(pt(34) * 1.2),
-      color: "rgba(255,255,255,0.92)", align: "left",
+      type: "text", name: "부제",
+      text: cover.subtitle,
+      x: PAD_X, y: titleY + titleH + 22, width: CARD_W - PAD_X * 2, height: pt(38) * 2 + 10,
+      fontFamily: "Pretendard", fontSize: pt(38), fontWeight: 400,
+      lineHeight: Math.round(pt(38) * 1.30),
+      color: "rgba(255,255,255,0.82)", align: "left",
     });
   }
 
-  // 브랜드 텍스트 (하단 중앙 고정)
-  const brandH = 22;
-  const brandW = 300;
+  // 브랜드 로고 이미지 (하단 중앙 고정 — CSS: height:22px, opacity:0.62)
+  // Figma 카드는 1080px 기준이지만 로고는 PNG 출력(2x)에 맞춰 44px로 렌더링
+  const logoH = 44;
+  const logoW = Math.round(787 / 72 * logoH); // 787×72 원본, 비례 너비 ≈ 481
   layers.push({
-    type: "text", name: "브랜드 텍스트",
-    text: BRAND_NAME,
-    x: Math.round((CARD_W - brandW) / 2),
-    y: CARD_H - 46 - brandH,
-    width: brandW, height: brandH,
-    fontFamily: "Pretendard", fontSize: 14, fontWeight: 400,
-    lineHeight: 22,
-    color: "rgba(255,255,255,0.62)", align: "center",
+    type: "image", name: "브랜드 로고",
+    src: baseUrl ? `${baseUrl}/assets/white.png` : "",
+    x: Math.round((CARD_W - logoW) / 2),
+    y: CARD_H - 46 - logoH,
+    width: logoW, height: logoH,
+    opacity: 0.62,
   });
 
   return layers;
@@ -411,7 +362,7 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
 
       if (i > 0) y -= 8;
     }
-    y -= 16; // highlights 블록 위 margin
+    y -= 8; // highlights 블록 위 margin
   }
 
   // 불릿 (highlights 대신 사용되는 경우)
@@ -436,10 +387,10 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
     y -= 14;
   }
 
-  // 인트로 (34pt, 최대 2줄 높이)
+  // 인트로 (34pt, 1줄 높이 기준으로 레이아웃 계산 — Figma에서 textAutoResize:HEIGHT로 실제 줄 수 대응)
   if (card.intro) {
     const introLineH = Math.round(pt(34) * 1.34);
-    const introH = introLineH * 2 + 10;
+    const introH = introLineH + 10;
     y -= introH;
     layers.push({
       type: "text", name: "인트로",
@@ -485,18 +436,16 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
     color: "#FFFFFF", align: "left",
   });
 
-  // 브랜드 텍스트 (하단 중앙 고정)
-  const brandH = 22;
-  const brandW = 300;
+  // 브랜드 로고 이미지 (하단 중앙 고정 — CSS: height:22px, opacity:0.62)
+  const logoH = 44;
+  const logoW = Math.round(787 / 72 * logoH);
   layers.push({
-    type: "text", name: "브랜드 텍스트",
-    text: BRAND_NAME,
-    x: Math.round((CARD_W - brandW) / 2),
-    y: CARD_H - 46 - brandH,
-    width: brandW, height: brandH,
-    fontFamily: "Pretendard", fontSize: 14, fontWeight: 400,
-    lineHeight: 22,
-    color: "rgba(255,255,255,0.62)", align: "center",
+    type: "image", name: "브랜드 로고",
+    src: baseUrl ? `${baseUrl}/assets/white.png` : "",
+    x: Math.round((CARD_W - logoW) / 2),
+    y: CARD_H - 46 - logoH,
+    width: logoW, height: logoH,
+    opacity: 0.62,
   });
 
   return layers;

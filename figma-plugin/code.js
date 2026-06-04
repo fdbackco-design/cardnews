@@ -142,6 +142,10 @@ async function createImageLayer(layer, imageBytes) {
     node.fills = [{ type: "SOLID", color: { r: 0.8, g: 0.8, b: 0.8 } }];
   }
 
+  if (layer.opacity !== null && layer.opacity !== undefined) {
+    node.opacity = layer.opacity;
+  }
+
   return node;
 }
 
