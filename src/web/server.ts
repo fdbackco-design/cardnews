@@ -6,6 +6,8 @@ import * as path from "path";
 
 import { cardNewsRoutes } from "./routes/cardNewsRoutes";
 import { instagramRoutes } from "./routes/instagramRoutes";
+import { authRoutes } from "./routes/authRoutes";
+import { requireAuth } from "./middleware/requireAuth";
 
 const app = express();
 const PORT = parseInt(process.env["WEB_PORT"] ?? "3000", 10);
@@ -32,8 +34,12 @@ app.use("/output", express.static(OUTPUT_DIR));
 
 // ── API 라우트 ────────────────────────────────────────────────────────────────
 
-app.use("/api/cardnews", cardNewsRoutes);
-app.use("/api/instagram", instagramRoutes);
+// 인증 라우트 (로그인 불필요)
+app.use("/api/auth", authRoutes);
+
+// 보호된 라우트 (로그인 필요)
+app.use("/api/cardnews", requireAuth, cardNewsRoutes);
+app.use("/api/instagram", requireAuth, instagramRoutes);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 

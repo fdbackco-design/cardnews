@@ -7,7 +7,30 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-<div class="layout">
+
+<!-- ── 로그인 화면 ─────────────────────────────────────────────────────────── -->
+<div id="login-overlay" class="login-overlay hidden">
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="dot"></span> TY Life Partners
+    </div>
+    <div class="login-title">카드뉴스 관리 시스템</div>
+    <form id="login-form" onsubmit="submitLogin(event)">
+      <div class="login-field">
+        <label for="login-username">아이디</label>
+        <input type="text" id="login-username" autocomplete="username" placeholder="아이디 입력" required />
+      </div>
+      <div class="login-field">
+        <label for="login-password">비밀번호</label>
+        <input type="password" id="login-password" autocomplete="current-password" placeholder="비밀번호 입력" required />
+      </div>
+      <div id="login-error" class="login-error hidden"></div>
+      <button type="submit" id="login-btn" class="login-btn">로그인</button>
+    </form>
+  </div>
+</div>
+
+<div class="layout" id="app-layout" style="display:none">
 
   <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
   <nav class="sidebar">
@@ -40,7 +63,8 @@
     </div>
 
     <div class="sidebar-footer">
-      <span>Phase 1 · v0.1.0</span>
+      <span id="sidebar-username" style="display:block;margin-bottom:8px;font-size:11px;color:var(--sidebar-muted)"></span>
+      <button class="logout-btn" onclick="logout()">로그아웃</button>
     </div>
   </nav>
 
@@ -468,7 +492,7 @@
     </div>
 
   </main>
-</div>
+</div><!-- /#app-layout -->
 
 <!-- ── 이미지 프리뷰 모달 ────────────────────────────────────────────────── -->
 <div id="image-modal" class="modal-overlay hidden" onclick="closeModal()">

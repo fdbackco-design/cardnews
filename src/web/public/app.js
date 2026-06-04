@@ -1,3 +1,105 @@
+/* ── Auth ──────────────────────────────────────────────────────────────────── */
+
+const AUTH_KEY = 'cardnews_token';
+
+function getToken() {
+  return localStorage.getItem(AUTH_KEY) || '';
+}
+
+function setToken(token) {
+  localStorage.setItem(AUTH_KEY, token);
+}
+
+function clearToken() {
+  localStorage.removeItem(AUTH_KEY);
+}
+
+async function checkAuthAndInit() {
+  const token = getToken();
+  if (!token) {
+    showLoginOverlay();
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/status', {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    const data = await res.json();
+    if (data.authenticated) {
+      showApp();
+    } else {
+      clearToken();
+      showLoginOverlay();
+    }
+  } catch (e) {
+    showLoginOverlay();
+  }
+}
+
+function showLoginOverlay() {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('app-layout').style.display = 'none';
+  setTimeout(() => {
+    const u = document.getElementById('login-username');
+    if (u) u.focus();
+  }, 50);
+}
+
+function showApp() {
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('app-layout').style.display = 'flex';
+  document.getElementById('sidebar-username').textContent = 'admin';
+  navigateTo('health');
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+
+  errorEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = '로그인 중...';
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (data.ok && data.token) {
+      setToken(data.token);
+      showApp();
+    } else {
+      errorEl.textContent = data.error || '로그인 실패';
+      errorEl.classList.remove('hidden');
+    }
+  } catch (e) {
+    errorEl.textContent = '서버 연결에 실패했습니다.';
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '로그인';
+  }
+}
+
+async function logout() {
+  const token = getToken();
+  if (token) {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+    }).catch(() => {});
+  }
+  clearToken();
+  showLoginOverlay();
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+}
+
 /* ── State ─────────────────────────────────────────────────────────────────── */
 const state = {
   currentPage: 'health',
@@ -26,17 +128,25 @@ const state = {
 
 /* ── API Client ────────────────────────────────────────────────────────────── */
 const api = {
+  _headers(extra) {
+    const token = getToken();
+    const h = { 'Content-Type': 'application/json' };
+    if (token) h['Authorization'] = 'Bearer ' + token;
+    return Object.assign(h, extra || {});
+  },
   async get(url) {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: this._headers({ 'Content-Type': undefined }) });
+    if (res.status === 401) { clearToken(); showLoginOverlay(); throw new Error('로그인이 필요합니다.'); }
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
   },
   async post(url, body) {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this._headers(),
       body: JSON.stringify(body),
     });
+    if (res.status === 401) { clearToken(); showLoginOverlay(); throw new Error('로그인이 필요합니다.'); }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `${res.status} ${res.statusText}`);
@@ -46,9 +156,10 @@ const api = {
   async patch(url, body) {
     const res = await fetch(url, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this._headers(),
       body: JSON.stringify(body),
     });
+    if (res.status === 401) { clearToken(); showLoginOverlay(); throw new Error('로그인이 필요합니다.'); }
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
   },
@@ -1126,7 +1237,7 @@ async function uploadCardImage(cardIndex) {
   try {
     const res = await fetch(`/api/cardnews/sets/${setId}/cards/${cardIndex}/image`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: api._headers(),
       body: JSON.stringify({ imageBase64: state._pendingImageBase64 }),
     });
     if (!res.ok) {
@@ -1367,4 +1478,4 @@ async function copyFigmaJsonUrl() {
 }
 
 /* ── Init ──────────────────────────────────────────────────────────────────── */
-navigateTo('health');
+checkAuthAndInit();
