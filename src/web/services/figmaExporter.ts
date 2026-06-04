@@ -59,6 +59,9 @@ const CARD_H = 1350;
 const PAD_X = 80;
 const CONTENT_W = 900;  // CARD_W - PAD_X*2 = 920, but CSS uses max-width:900
 
+// 브랜드 로고: Figma 플러그인은 로컬 서버 URL에 접근하지 못할 수 있으므로 공개 R2 URL 고정
+const BRAND_LOGO_URL = "https://pub-9d773a8e8759461eab92383610baddf2.r2.dev/assets/white.png";
+
 // CSS pt → px (96dpi: 1pt = 4/3 px)
 function pt(n: number): number {
   return Math.round(n * 4 / 3);
@@ -266,7 +269,7 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
   const logoW = Math.round(787 / 72 * logoH); // 787×72 원본, 비례 너비 ≈ 481
   layers.push({
     type: "image", name: "브랜드 로고",
-    src: baseUrl ? `${baseUrl}/assets/white.png` : "",
+    src: BRAND_LOGO_URL,
     x: Math.round((CARD_W - logoW) / 2),
     y: CARD_H - 46 - logoH,
     width: logoW, height: logoH,
@@ -441,7 +444,7 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
   const logoW = Math.round(787 / 72 * logoH);
   layers.push({
     type: "image", name: "브랜드 로고",
-    src: baseUrl ? `${baseUrl}/assets/white.png` : "",
+    src: BRAND_LOGO_URL,
     x: Math.round((CARD_W - logoW) / 2),
     y: CARD_H - 46 - logoH,
     width: logoW, height: logoH,
