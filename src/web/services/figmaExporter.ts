@@ -496,7 +496,7 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
   });
 
   // 브랜드 로고 이미지 (하단 중앙 고정 — CSS: height:22px, opacity:0.62)
-  const logoH = 44;
+  const logoH = 22;
   const logoW = Math.round(787 / 72 * logoH);
   layers.push({
     type: "image", name: "브랜드 로고",
