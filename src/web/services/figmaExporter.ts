@@ -1,4 +1,5 @@
 import { fileURLToPath } from "url";
+import * as fs from "fs";
 import * as path from "path";
 import type { CardNewsSet, CoverCard, ContentCard } from "../../types/cardnews";
 
@@ -59,8 +60,18 @@ const CARD_H = 1350;
 const PAD_X = 80;
 const CONTENT_W = 900;  // CARD_W - PAD_X*2 = 920, but CSS uses max-width:900
 
-// 브랜드 로고: Figma 플러그인은 로컬 서버 URL에 접근하지 못할 수 있으므로 공개 R2 URL 고정
-const BRAND_LOGO_URL = "https://pub-9d773a8e8759461eab92383610baddf2.r2.dev/assets/white.png";
+// 브랜드 로고: R2 CORS 제한 우회를 위해 PNG를 data URL로 직접 임베드
+// 파일을 읽을 수 없으면 R2 URL을 fallback으로 사용
+function loadBrandLogoSrc(): string {
+  try {
+    const logoPath = path.resolve(process.cwd(), "public/assets/white.png");
+    const bytes = fs.readFileSync(logoPath);
+    return "data:image/png;base64," + bytes.toString("base64");
+  } catch {
+    return "https://pub-9d773a8e8759461eab92383610baddf2.r2.dev/assets/white.png";
+  }
+}
+const BRAND_LOGO_SRC = loadBrandLogoSrc();
 
 // CSS pt → px (96dpi: 1pt = 4/3 px)
 function pt(n: number): number {
@@ -269,7 +280,7 @@ function buildCoverLayers(cover: CoverCard, baseUrl: string | undefined): FigmaL
   const logoW = Math.round(787 / 72 * logoH); // 787×72 원본, 비례 너비 ≈ 481
   layers.push({
     type: "image", name: "브랜드 로고",
-    src: BRAND_LOGO_URL,
+    src: BRAND_LOGO_SRC,
     x: Math.round((CARD_W - logoW) / 2),
     y: CARD_H - 46 - logoH,
     width: logoW, height: logoH,
@@ -444,7 +455,7 @@ function buildContentLayers(card: ContentCard, displayIndex: number, baseUrl: st
   const logoW = Math.round(787 / 72 * logoH);
   layers.push({
     type: "image", name: "브랜드 로고",
-    src: BRAND_LOGO_URL,
+    src: BRAND_LOGO_SRC,
     x: Math.round((CARD_W - logoW) / 2),
     y: CARD_H - 46 - logoH,
     width: logoW, height: logoH,

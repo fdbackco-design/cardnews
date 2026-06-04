@@ -113,6 +113,26 @@ function setButtonState(loading) {
 
 async function fetchImageBytes(url) {
   if (!url) return null;
+
+  // data: URL — base64 디코딩 (네트워크 불필요, CORS 문제 없음)
+  if (url.startsWith('data:')) {
+    try {
+      var comma = url.indexOf(',');
+      if (comma === -1) return null;
+      var b64 = url.substring(comma + 1);
+      var binary = atob(b64);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return Array.from(bytes);
+    } catch (err) {
+      console.error('[data URL decode failed]', err.message || String(err));
+      return null;
+    }
+  }
+
+  // HTTP(S) URL fetch
   try {
     var res = await fetch(url);
     if (!res.ok) {
